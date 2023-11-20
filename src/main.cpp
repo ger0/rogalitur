@@ -6,38 +6,60 @@
 #include <cstdint>
 
 #include "player.hpp"
+#include "map.hpp"
 #include "types_utils.hpp"
 
 static Player PLAYER;
 
 struct Settings {
-    u32 width  = 800;
-    u32 height = 600;
+    u32 width  = 1024;
+    u32 height = 768;
 } CONF;
 
 enum GameState : byte {
     init,
-    play,
-    stop,
+    playing,
+    stopping,
 } STATE;
 
 void handle_events(SDL_Event& event, MoveType type) {
-    using dir = Player::Direction;
+    using Dir = Direction;
     switch (event.key.keysym.sym) {
-        case SDLK_LEFT:     PLAYER.move(dir::left, type); break;
-        case SDLK_RIGHT:    PLAYER.move(dir::right,type); break;
-        case SDLK_UP:       PLAYER.move(dir::jump, type); break;
+        case SDLK_q:        STATE = GameState::stopping;  break;
+        case SDLK_LEFT:     PLAYER.move(Dir::left, type); break;
+        case SDLK_RIGHT:    PLAYER.move(Dir::right,type); break;
+        case SDLK_UP:       PLAYER.move(Dir::jump, type); break;
     }
 }
 
 void poll_events(SDL_Event& event) {
     while (SDL_PollEvent(&event) != 0) {
         switch (event.type) {
-            case SDL_QUIT:      STATE = stop; break;
-            case SDL_KEYDOWN:   handle_events(event, MoveType::press); break;
-            case SDL_KEYUP:     handle_events(event, MoveType::release); break;
+            case SDL_QUIT:      STATE = GameState::stopping; break;
+            case SDL_KEYDOWN:   handle_events(event, MoveType::move); break;
+            case SDL_KEYUP:     handle_events(event, MoveType::stop); break;
         }
     }
+}
+
+void render_all(SDL_Window* wndw, SDL_Renderer* rndr) {
+    SDL_RenderPresent(rndr);
+    SDL_SetRenderDrawColor(rndr, 0, 0, 0, 255);
+    SDL_RenderClear(rndr);
+    //SDL_RenderCopy(rndr, texture, NULL, NULL);
+
+    {
+        SDL_Rect rect = {
+            PLAYER.pos.x,
+            PLAYER.pos.y, 
+            24, 
+            12
+        };
+        SDL_SetRenderDrawColor(rndr, 255, 255, 255, 255);
+        SDL_RenderFillRect(rndr, &rect);
+    }
+
+    SDL_RenderPresent(rndr);
 }
 
 int main(int argc, char* argv[]) {
@@ -52,6 +74,7 @@ int main(int argc, char* argv[]) {
     u64 prev_frame = SDL_GetTicks64();
     u64 delta_frame;
 
+    // ------- SDL INITIALISATION --------
     SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER);
     SDL_Window* window = SDL_CreateWindow(
         argv[0], 
@@ -64,16 +87,52 @@ int main(int argc, char* argv[]) {
         -1, 
         SDL_RENDERER_ACCELERATED
     );
+    defer {
+        SDL_DestroyRenderer(renderer);
+        SDL_DestroyWindow(window);
+    };
+    if (window == nullptr || renderer == nullptr) {
+        LOG_ERR("Failed to initialise SDL window");
+        return EXIT_FAILURE;
+    }
+    // -----------------------------------
 
-    STATE = play;
+    // DEBUG TESTING
+    Map map;
+    map.width = 800;
+    map.height = 600;
+    if (!map.load_data("/home/gero/rogalitur/assets/first_map.bmp")) {
+        LOG_ERR("Failed to load map data!");
+        return EXIT_FAILURE;
+    }
+
+    // ----- Texture initialisation ------
+    SDL_Texture* map_texture = SDL_CreateTexture(
+        renderer,
+        SDL_PIXELFORMAT_RGBA8888,
+        SDL_TEXTUREACCESS_TARGET,
+        map.width, map.height 
+    );
+    defer {
+        SDL_DestroyTexture(map_texture);
+    };
+    // -----------------------------------
+
+    STATE = playing;
     SDL_Event event;
+    PLAYER.pos = {.x = int(map.width / 2), .y = int(map.height / 2)};
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+    SDL_RenderClear(renderer);
+    SDL_RenderCopy(renderer, map_texture, NULL, NULL);
 
-    while (STATE != stop) {
+    while (STATE != GameState::stopping) {
         poll_events(event);
-        SDL_RenderPresent(renderer);
+        PLAYER.update_pos();
+        render_all(window, renderer);
 
         curr_tick = SDL_GetTicks64();
         delta_time = curr_tick - prev_tick;
+
         // rendering synchro
         delta_frame = curr_tick - prev_frame;
         if (delta_frame < frame_min_dur) {

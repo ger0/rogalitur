@@ -7,6 +7,6 @@ find_package(SDL2 REQUIRED)
 find_package(fmt)
 include_directories(${SDL2_INCLUDE_DIRS})
 
-add_executable(rogalik main.cpp player.cpp)
+add_executable(rogalik main.cpp player.cpp entity.cpp map.cpp)
 target_link_libraries(rogalik ${SDL2_LIBRARIES})
 target_link_libraries(rogalik fmt::fmt)

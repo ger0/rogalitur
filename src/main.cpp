@@ -1,4 +1,5 @@
 #include <SDL2/SDL_render.h>
+#include <SDL2/SDL_surface.h>
 #include <SDL2/SDL_video.h>
 #include <cstdlib>
 #include <fmt/printf.h>
@@ -10,6 +11,8 @@
 #include "types_utils.hpp"
 
 static Player PLAYER;
+
+#define DEBUG
 
 struct Settings {
     u32 width  = 1024;
@@ -42,11 +45,8 @@ void poll_events(SDL_Event& event) {
     }
 }
 
-void render_all(SDL_Window* wndw, SDL_Renderer* rndr) {
-    SDL_RenderPresent(rndr);
+void render_entities(SDL_Window* wndw, SDL_Renderer* rndr) {
     SDL_SetRenderDrawColor(rndr, 0, 0, 0, 255);
-    SDL_RenderClear(rndr);
-    //SDL_RenderCopy(rndr, texture, NULL, NULL);
 
     {
         SDL_Rect rect = {
@@ -55,11 +55,10 @@ void render_all(SDL_Window* wndw, SDL_Renderer* rndr) {
             24, 
             12
         };
-        SDL_SetRenderDrawColor(rndr, 255, 255, 255, 255);
+        SDL_SetRenderDrawColor(rndr, 255, 0, 0, 255);
         SDL_RenderFillRect(rndr, &rect);
     }
 
-    SDL_RenderPresent(rndr);
 }
 
 int main(int argc, char* argv[]) {
@@ -107,15 +106,30 @@ int main(int argc, char* argv[]) {
     }
 
     // ----- Texture initialisation ------
-    SDL_Texture* map_texture = SDL_CreateTexture(
+    SDL_Surface *map_surf = SDL_CreateRGBSurfaceWithFormatFrom(
+            map.bytes.data(), 
+            map.width, map.height, 8, map.width, SDL_PIXELFORMAT_INDEX8
+    );
+
+    /* SDL_Texture* map_texture = SDL_CreateTexture(
         renderer,
         SDL_PIXELFORMAT_RGBA8888,
         SDL_TEXTUREACCESS_TARGET,
         map.width, map.height 
-    );
+    ); */
+
+    auto surf = SDL_LoadBMP("/home/gero/rogalitur/assets/first_map.bmp");
+    auto map_texture = SDL_CreateTextureFromSurface(renderer, surf);
+    LOG("Size: {}", map.bytes.size());
     defer {
         SDL_DestroyTexture(map_texture);
     };
+    if (map_texture == nullptr) {
+        LOG_ERR("Failed to generate texture!");
+        return EXIT_FAILURE;
+    }
+    SDL_FreeSurface(map_surf);
+
     // -----------------------------------
 
     STATE = playing;
@@ -128,7 +142,11 @@ int main(int argc, char* argv[]) {
     while (STATE != GameState::stopping) {
         poll_events(event);
         PLAYER.update_pos();
-        render_all(window, renderer);
+
+        SDL_RenderClear(renderer);
+        SDL_RenderCopy(renderer, map_texture, nullptr, nullptr);
+        render_entities(window, renderer);
+        SDL_RenderPresent(renderer);
 
         curr_tick = SDL_GetTicks64();
         delta_time = curr_tick - prev_tick;

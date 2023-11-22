@@ -11,6 +11,7 @@ struct Map {
     std::vector<byte> bytes;
 
     bool load_data(std::string filename);
+    void iterate();
 };
 
 #endif // RGL_MAP_HPP

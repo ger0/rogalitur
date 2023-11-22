@@ -28,3 +28,12 @@ bool Map::load_data(std::string filename) {
 	if (read_size != size) return false;
 	return true;
 }
+void Map::iterate() {
+    LOG_DBG("Iterating over map's data");
+    u32 i = 0;
+    for (const byte& item : bytes) {
+        printf("%u,", item / 255);
+        i++;
+        if (i % (width * 3) == 0) printf("\n");
+    }
+}

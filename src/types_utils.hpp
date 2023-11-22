@@ -8,6 +8,8 @@ using u64 = uint_fast64_t;
 using u32 = uint_fast32_t;
 using byte = unsigned char;
 
+#define DEBUG
+
 // defer
 #ifndef defer
 struct defer_dummy {};

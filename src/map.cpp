@@ -23,17 +23,27 @@ bool Map::load_data(std::string filename) {
 	if (fseek(f.get(), 0, SEEK_END) != 0) return false;
 	const size_t size = ftell(f.get());
 	fseek(f.get(), 0, SEEK_SET);
-	this->bytes.resize(size);
-	size_t read_size = fread(this->bytes.data(), sizeof(byte), this->bytes.size(), f.get());
+	this->data.resize(size);
+	size_t read_size = fread(this->data.data(), sizeof(byte), this->data.size(), f.get());
 	if (read_size != size) return false;
 	return true;
 }
 void Map::iterate() {
     LOG_DBG("Iterating over map's data");
-    u32 i = 0;
-    for (const byte& item : bytes) {
-        printf("%u,", item / 255);
-        i++;
-        if (i % (width * 3) == 0) printf("\n");
+    for (const u32& item : data) {
+        printf("%lu,", item);
     }
+}
+
+// todo: remove 
+void Map::load_from_sdl(SDL_Surface &surf) {
+	SDL_LockSurface(&surf);
+    defer {
+        SDL_UnlockSurface(&surf);
+    };
+    byte size = surf.format->BytesPerPixel;
+    data.resize(surf.w * surf.h);
+    this->width = surf.w;
+    this->height = surf.h;
+	memcpy(data.data(), surf.pixels, width * height * size);
 }

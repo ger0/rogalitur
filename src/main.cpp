@@ -98,8 +98,6 @@ int main(int argc, char* argv[]) {
 
     // DEBUG TESTING
     Map map;
-    map.width = 800;
-    map.height = 600;
     if (!map.load_data("/home/gero/rogalitur/assets/first_map.bmp")) {
         LOG_ERR("Failed to load map data!");
         return EXIT_FAILURE;
@@ -107,7 +105,7 @@ int main(int argc, char* argv[]) {
 
     // ----- Texture initialisation ------
     SDL_Surface *map_surf = SDL_CreateRGBSurfaceWithFormatFrom(
-            map.bytes.data(), 
+            map.data.data(), 
             map.width, map.height, 8, map.width, SDL_PIXELFORMAT_INDEX8
     );
 
@@ -119,8 +117,9 @@ int main(int argc, char* argv[]) {
     ); */
 
     auto surf = SDL_LoadBMP("/home/gero/rogalitur/assets/first_map.bmp");
+    map.load_from_sdl(*surf);
     auto map_texture = SDL_CreateTextureFromSurface(renderer, surf);
-    LOG("Size: {}", map.bytes.size());
+    LOG("Size: {}", map.data.size());
     defer {
         SDL_DestroyTexture(map_texture);
     };

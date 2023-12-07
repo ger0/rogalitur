@@ -1,18 +1,24 @@
+#include <cstdlib>
+#include <fmt/printf.h>
+#include <cstdint>
+#include <unordered_map>
+
+#include <SDL2/SDL.h>
 #include <SDL2/SDL_render.h>
 #include <SDL2/SDL_surface.h>
 #include <SDL2/SDL_video.h>
-#include <cstdlib>
-#include <fmt/printf.h>
-#include <SDL2/SDL.h>
-#include <cstdint>
 
-#include "player.hpp"
+#include "entity.hpp"
+#include "physics.hpp"
 #include "map.hpp"
 #include "types_utils.hpp"
 
-static Player PLAYER;
-
 #define DEBUG
+
+static std::vector<Entity> entities;
+static std::vector<ID> player_entities;
+
+static std::unordered_map<ID, Physics> physics_comps;
 
 struct Settings {
     u32 width  = 1024;
@@ -27,11 +33,19 @@ enum GameState : byte {
 
 void handle_events(SDL_Event& event, MoveType type) {
     using Dir = Direction;
-    switch (event.key.keysym.sym) {
-        case SDLK_q:        STATE = GameState::stopping;  break;
-        case SDLK_LEFT:     PLAYER.move(Dir::left, type); break;
-        case SDLK_RIGHT:    PLAYER.move(Dir::right,type); break;
-        case SDLK_UP:       PLAYER.move(Dir::jump, type); break;
+    if (event.key.keysym.sym == SDLK_q) {
+        STATE = GameState::stopping;
+    }
+
+    for (const auto& id : player_entities) {
+        auto& comp = physics_comps.at(id);
+        switch (event.key.keysym.sym) {
+            case SDLK_LEFT:     update_move(comp, Dir::left, type); break;
+            case SDLK_RIGHT:    update_move(comp, Dir::right,type); break;
+
+            case SDLK_UP:       update_move(comp, Dir::jump, type); break;
+            case SDLK_SPACE:    update_move(comp, Dir::jump, type); break;
+        }
     }
 }
 
@@ -45,20 +59,27 @@ void poll_events(SDL_Event& event) {
     }
 }
 
-void render_entities(SDL_Window* wndw, SDL_Renderer* rndr) {
-    SDL_SetRenderDrawColor(rndr, 0, 0, 0, 255);
-
-    {
-        SDL_Rect rect = {
-            PLAYER.pos.x,
-            PLAYER.pos.y, 
-            24, 
-            12
-        };
-        SDL_SetRenderDrawColor(rndr, 255, 0, 0, 255);
-        SDL_RenderFillRect(rndr, &rect);
+void handle_entities(SDL_Window* wndw, SDL_Renderer* rndr) {
+    for (const auto& entity : entities) {
+        if (entity.flags & PHYSICS_FLAG) {
+            auto& comp = physics_comps.at(entity.id);
+            step_tick(comp);
+        }
+        // TODO: add position for rendering
+        if (entity.flags & PHYSICS_FLAG 
+                && entity.flags & RENDER_FLAG) {
+            SDL_SetRenderDrawColor(rndr, 0, 0, 0, 255);
+            const auto& pos = physics_comps.at(entity.id).pos;
+            SDL_Rect rect = {
+                pos.x,
+                pos.y, 
+                24, 
+                12
+            };
+            SDL_SetRenderDrawColor(rndr, 255, 0, 0, 255);
+            SDL_RenderFillRect(rndr, &rect);
+        }
     }
-
 }
 
 int main(int argc, char* argv[]) {
@@ -119,7 +140,6 @@ int main(int argc, char* argv[]) {
     auto surf = SDL_LoadBMP("/home/gero/rogalitur/assets/first_map.bmp");
     map.load_from_sdl(*surf);
     auto map_texture = SDL_CreateTextureFromSurface(renderer, surf);
-    LOG("Size: {}", map.data.size());
     defer {
         SDL_DestroyTexture(map_texture);
     };
@@ -130,21 +150,34 @@ int main(int argc, char* argv[]) {
     SDL_FreeSurface(map_surf);
 
     // -----------------------------------
+    // player entity init
+    {
+        Entity player;
+        player.flags |= PLAYER_FLAG;
+        player.flags |= PHYSICS_FLAG;
+        player.flags |= RENDER_FLAG;
 
+        Physics player_phys;
+        player_phys.pos = {.x = int(map.width / 2), .y = int(map.height / 2)};
+
+        entities.push_back(player);
+        physics_comps[player.id] = player_phys;
+        player_entities.push_back(player.id);
+    }
+    
     STATE = playing;
     SDL_Event event;
-    PLAYER.pos = {.x = int(map.width / 2), .y = int(map.height / 2)};
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer);
     SDL_RenderCopy(renderer, map_texture, NULL, NULL);
 
     while (STATE != GameState::stopping) {
         poll_events(event);
-        PLAYER.update_pos();
+        // handle_entities()
 
         SDL_RenderClear(renderer);
         SDL_RenderCopy(renderer, map_texture, nullptr, nullptr);
-        render_entities(window, renderer);
+        handle_entities(window, renderer);
         SDL_RenderPresent(renderer);
 
         curr_tick = SDL_GetTicks64();

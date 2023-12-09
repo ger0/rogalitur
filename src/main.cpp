@@ -8,10 +8,11 @@
 #include <SDL2/SDL_surface.h>
 #include <SDL2/SDL_video.h>
 
+#include "types_utils.hpp"
 #include "entity.hpp"
 #include "physics.hpp"
 #include "map.hpp"
-#include "types_utils.hpp"
+#include "renderable.hpp"
 
 #define DEBUG
 
@@ -19,6 +20,7 @@ static std::vector<Entity> entities;
 static std::vector<ID> player_entities;
 
 static std::unordered_map<ID, Physics> physics_comps;
+static std::unordered_map<ID, Renderable> render_comps;
 
 struct Settings {
     u32 width  = 1024;
@@ -30,6 +32,22 @@ enum GameState : byte {
     playing,
     stopping,
 } STATE;
+
+void add_new_player(Vec2i pos) {
+    Entity player = create_new_entity(PLAYER_FLAG | PHYSICS_FLAG | RENDER_FLAG);
+    entities.push_back(player);
+
+    Physics player_phys;
+    player_phys.pos = {.x = pos.x, .y = pos.y};
+    physics_comps[player.id] = player_phys;
+
+    Renderable player_rend;
+    player_rend.pos = {.x = pos.x, .y = pos.y};
+    player_rend.bnd = {.x = 12, .y = 24};
+    render_comps[player.id] = player_rend;
+
+    player_entities.push_back(player.id);
+}
 
 void handle_events(SDL_Event& event, MoveType type) {
     using Dir = Direction;
@@ -63,18 +81,25 @@ void handle_entities(SDL_Window* wndw, SDL_Renderer* rndr) {
     for (const auto& entity : entities) {
         if (entity.flags & PHYSICS_FLAG) {
             auto& comp = physics_comps.at(entity.id);
-            step_tick(comp);
+            update_tick(comp);
         }
-        // TODO: add position for rendering
-        if (entity.flags & PHYSICS_FLAG 
-                && entity.flags & RENDER_FLAG) {
+
+        // rendering TODO: Move out of the function
+        if (entity.flags & RENDER_FLAG) {
             SDL_SetRenderDrawColor(rndr, 0, 0, 0, 255);
-            const auto& pos = physics_comps.at(entity.id).pos;
+            auto& elem = render_comps.at(entity.id);
+            // update position 
+            if (entity.flags & PHYSICS_FLAG) {
+                const auto& phys_comp = physics_comps.at(entity.id);
+                elem.pos.x = phys_comp.pos.x;
+                elem.pos.y = phys_comp.pos.y;
+            }
+            // render 
             SDL_Rect rect = {
-                pos.x,
-                pos.y, 
-                24, 
-                12
+                elem.pos.x,
+                elem.pos.y, 
+                elem.bnd.x, 
+                elem.bnd.y
             };
             SDL_SetRenderDrawColor(rndr, 255, 0, 0, 255);
             SDL_RenderFillRect(rndr, &rect);
@@ -118,26 +143,8 @@ int main(int argc, char* argv[]) {
     // -----------------------------------
 
     // DEBUG TESTING
+    auto surf = SDL_LoadBMP("../assets/first_map.bmp");
     Map map;
-    if (!map.load_data("/home/gero/rogalitur/assets/first_map.bmp")) {
-        LOG_ERR("Failed to load map data!");
-        return EXIT_FAILURE;
-    }
-
-    // ----- Texture initialisation ------
-    SDL_Surface *map_surf = SDL_CreateRGBSurfaceWithFormatFrom(
-            map.data.data(), 
-            map.width, map.height, 8, map.width, SDL_PIXELFORMAT_INDEX8
-    );
-
-    /* SDL_Texture* map_texture = SDL_CreateTexture(
-        renderer,
-        SDL_PIXELFORMAT_RGBA8888,
-        SDL_TEXTUREACCESS_TARGET,
-        map.width, map.height 
-    ); */
-
-    auto surf = SDL_LoadBMP("/home/gero/rogalitur/assets/first_map.bmp");
     map.load_from_sdl(*surf);
     auto map_texture = SDL_CreateTextureFromSurface(renderer, surf);
     defer {
@@ -147,23 +154,13 @@ int main(int argc, char* argv[]) {
         LOG_ERR("Failed to generate texture!");
         return EXIT_FAILURE;
     }
-    SDL_FreeSurface(map_surf);
 
     // -----------------------------------
     // player entity init
-    {
-        Entity player;
-        player.flags |= PLAYER_FLAG;
-        player.flags |= PHYSICS_FLAG;
-        player.flags |= RENDER_FLAG;
-
-        Physics player_phys;
-        player_phys.pos = {.x = int(map.width / 2), .y = int(map.height / 2)};
-
-        entities.push_back(player);
-        physics_comps[player.id] = player_phys;
-        player_entities.push_back(player.id);
-    }
+    add_new_player(Vec2i{
+        (int)map.width / 2, 
+        (int)map.height / 2
+    });
     
     STATE = playing;
     SDL_Event event;
@@ -173,7 +170,6 @@ int main(int argc, char* argv[]) {
 
     while (STATE != GameState::stopping) {
         poll_events(event);
-        // handle_entities()
 
         SDL_RenderClear(renderer);
         SDL_RenderCopy(renderer, map_texture, nullptr, nullptr);

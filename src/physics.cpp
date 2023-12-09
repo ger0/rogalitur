@@ -40,7 +40,7 @@ void update_move(Physics &comp, Direction dir, MoveType type) {
     }
 }
 
-void step_tick(Physics &comp) {
+void update_tick(Physics &comp) {
     // Handle movements:
     auto& vel   = comp.vel;
     auto& accel = comp.accel;

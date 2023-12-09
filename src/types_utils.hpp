@@ -6,6 +6,8 @@
 
 using u64 = uint_fast64_t;
 using u32 = uint_fast32_t;
+using i64 = int_fast64_t;
+using i32 = int_fast32_t;
 using byte = unsigned char;
 
 #define DEBUG
@@ -31,5 +33,15 @@ template <class F> deferrer<F> operator*(defer_dummy, F f) { return {f}; }
 #else 
 #define LOG_DBG(...) ;
 #endif
+
+struct Vec2i {
+    int x;
+    int y;
+};
+
+struct Vec2u {
+    unsigned x;
+    unsigned y;
+};
 
 #endif // RGL_TYPES_HPP

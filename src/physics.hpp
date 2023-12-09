@@ -44,6 +44,6 @@ struct Physics {
 };
 
 void update_move(Physics &component, Direction dir, MoveType type);
-void step_tick(Physics &component);
+void update_tick(Physics &component);
 
 #endif // RGL_PHYSICS_HPP

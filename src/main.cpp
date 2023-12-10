@@ -23,8 +23,8 @@ static std::unordered_map<ID, Physics> physics_comps;
 static std::unordered_map<ID, Renderable> render_comps;
 
 struct Settings {
-    u32 width  = 1024;
-    u32 height = 768;
+    u32 width  = 800;
+    u32 height = 600;
 } CONF;
 
 enum GameState : byte {
@@ -38,7 +38,7 @@ void add_new_player(Vec2i pos) {
     entities.push_back(player);
 
     Physics player_phys;
-    player_phys.pos = {.x = pos.x, .y = pos.y};
+    player_phys.loc = Location::air;
     physics_comps[player.id] = player_phys;
 
     Renderable player_rend;
@@ -77,27 +77,24 @@ void poll_events(SDL_Event& event) {
     }
 }
 
-void handle_entities(SDL_Window* wndw, SDL_Renderer* rndr) {
+void handle_entities(SDL_Window* wndw, SDL_Renderer* rndr, const Map& map) {
     for (const auto& entity : entities) {
         if (entity.flags & PHYSICS_FLAG) {
-            auto& comp = physics_comps.at(entity.id);
-            update_tick(comp);
+            if (entity.flags & RENDER_FLAG) {
+                auto& comp = physics_comps.at(entity.id);
+                auto& rend = render_comps.at(entity.id);
+                update_tick(comp, map, rend.pos, rend.bnd);
+            }
         }
 
         // rendering TODO: Move out of the function
         if (entity.flags & RENDER_FLAG) {
             SDL_SetRenderDrawColor(rndr, 0, 0, 0, 255);
             auto& elem = render_comps.at(entity.id);
-            // update position 
-            if (entity.flags & PHYSICS_FLAG) {
-                const auto& phys_comp = physics_comps.at(entity.id);
-                elem.pos.x = phys_comp.pos.x;
-                elem.pos.y = phys_comp.pos.y;
-            }
             // render 
             SDL_Rect rect = {
                 elem.pos.x,
-                elem.pos.y, 
+                (int)map.height - elem.pos.y, 
                 elem.bnd.x, 
                 elem.bnd.y
             };
@@ -114,7 +111,7 @@ int main(int argc, char* argv[]) {
     u64 curr_tick = prev_tick;
     u64 delta_time;
 
-    constexpr u64 fps_cap = 240;
+    constexpr u64 fps_cap = 60;
     constexpr u64 frame_min_dur = 1'000 / fps_cap;
     u64 prev_frame = SDL_GetTicks64();
     u64 delta_frame;
@@ -154,13 +151,9 @@ int main(int argc, char* argv[]) {
         LOG_ERR("Failed to generate texture!");
         return EXIT_FAILURE;
     }
-
     // -----------------------------------
     // player entity init
-    add_new_player(Vec2i{
-        (int)map.width / 2, 
-        (int)map.height / 2
-    });
+    add_new_player(Vec2i{400,300});
     
     STATE = playing;
     SDL_Event event;
@@ -173,7 +166,7 @@ int main(int argc, char* argv[]) {
 
         SDL_RenderClear(renderer);
         SDL_RenderCopy(renderer, map_texture, nullptr, nullptr);
-        handle_entities(window, renderer);
+        handle_entities(window, renderer, map);
         SDL_RenderPresent(renderer);
 
         curr_tick = SDL_GetTicks64();

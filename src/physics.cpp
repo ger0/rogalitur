@@ -17,7 +17,8 @@ void update_move(Physics &comp, Direction dir, MoveType type) {
 
         case jump:
             if (comp.loc == ground) {
-                comp.vel.y += comp.accel.y;
+                LOG_DBG("JUMPED!");
+                comp.vel.y = comp.accel.y;
                 comp.loc = air;
             }
             break;
@@ -40,11 +41,21 @@ void update_move(Physics &comp, Direction dir, MoveType type) {
     }
 }
 
-void update_tick(Physics &comp) {
+// check for collisions between a bytearray and a rectangle
+bool check_collision(const Map& map, Vec2i &pos, Vec2i &bnd)  {
+    for (int h = 0; h < bnd.y; h++) {
+        for (int w = 0; w < bnd.x; w++) {
+            const auto& pix = map.at(Vec2i{w + pos.x, h + pos.y});
+            if (pix) return true;
+        }
+    }
+    return false;
+}
+
+void update_tick(Physics &comp, const Map &map, Vec2i &pos, Vec2i &bnd) {
     // Handle movements:
-    auto& vel   = comp.vel;
-    auto& accel = comp.accel;
-    auto& pos   = comp.pos;
+    auto vel   = comp.vel;
+    auto accel = comp.accel;
 
     switch (comp.dir) {
 
@@ -62,6 +73,24 @@ void update_tick(Physics &comp) {
         }
         break;
     };
+
+    if (comp.loc == air) {
+        vel.y -= accel.g;
+    }
+
+    // calc collisions
+
+    if (check_collision(map, pos, bnd)){
+        if (comp.loc == air) { 
+            LOG_DBG("LANDED ON GROUND!");
+            comp.loc = ground;
+            return;
+        }
+    }
+
     pos.x += vel.x;
     pos.y += vel.y;
+
+    comp.vel = vel;
+    comp.accel = accel;
 }

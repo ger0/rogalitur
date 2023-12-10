@@ -10,6 +10,7 @@ struct Map {
     u32 height;
 
     std::vector<u32> data;
+    u32 at(const Vec2i pos) const;
 
     bool load_data(std::string filename);
     void iterate();

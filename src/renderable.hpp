@@ -2,6 +2,7 @@
 #define RGL_RENDERBL_HPP
 
 #include "types_utils.hpp"
+#include <SDL2/SDL_rect.h>
 
 struct Renderable {
     Vec2i pos;

@@ -3,6 +3,7 @@
 
 #include "entity.hpp"
 #include "types_utils.hpp"
+#include "map.hpp"
 
 enum MoveType {
     move,
@@ -23,11 +24,6 @@ enum Location : byte {
 };
 
 struct Physics {
-    struct Position {
-        int     x = 0;
-        int     y = 0;
-    } pos;
-
     struct Velocity {
         float   x = 0;
         float   y = 0;
@@ -36,7 +32,7 @@ struct Physics {
     struct Acceleration {
         float   x = 2.f;
         float   y = 5.f;
-        float   g = 2.f;
+        float   g = 0.009f;
     } accel;
 
     Direction   dir;
@@ -44,6 +40,6 @@ struct Physics {
 };
 
 void update_move(Physics &component, Direction dir, MoveType type);
-void update_tick(Physics &component);
+void update_tick(Physics &comp, const Map &map, Vec2i &pos, Vec2i &bnd);
 
 #endif // RGL_PHYSICS_HPP

@@ -1,4 +1,5 @@
 #include "map.hpp"
+#include <cstdint>
 #include <memory>
 #include <cstdlib>
 
@@ -30,9 +31,18 @@ bool Map::load_data(std::string filename) {
 }
 void Map::iterate() {
     LOG_DBG("Iterating over map's data");
+    u64 i = 0;
     for (const u32& item : data) {
-        printf("%lu,", item);
+        printf("%1lu,", item / 0xFFFFFFFFFFFFFFFF);
+    	i++;
+        if (i % this->width == 0) printf("\n");
     }
+}
+
+u32 Map::at(const Vec2i pos) const {
+	if (pos.x < 0 || pos.y < 0
+			|| pos.x >= this->width || pos.y >= this->height) return UINT32_MAX;
+	return this->data[pos.x + pos.y * this->width];
 }
 
 // todo: remove 

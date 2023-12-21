@@ -32,28 +32,32 @@ bool Map::load_data(std::string filename) {
 void Map::iterate() {
     LOG_DBG("Iterating over map's data");
     u64 i = 0;
-    for (const u32& item : data) {
+    /* for (const u32& item : data) {
         printf("%1lu,", item / 0xFFFFFFFFFFFFFFFF);
     	i++;
         if (i % this->width == 0) printf("\n");
-    }
+    } */
+	for (int y = 0; y < height; y++) {
+		for (int x = 0; x < width; x++) {
+        	printf("%1lu,", at(Vec2i{x, y}) / 0xFFFFFFFFFFFFFFFF);
+		}
+        printf("\n");
+	}
 }
 
 u32 Map::at(const Vec2i pos) const {
-	if (pos.x < 0 || pos.y < 0
-			|| pos.x >= this->width || pos.y >= this->height) return UINT32_MAX;
-	return this->data[pos.x + pos.y * this->width];
+	if (pos.x <= 0 || pos.y <= 0
+			|| pos.x >= width || pos.y >= height) return UINT32_MAX;
+	return this->data[pos.x + pos.y * width];
 }
 
 // todo: remove 
-void Map::load_from_sdl(SDL_Surface &surf) {
+Map::Map(SDL_Surface &surf): width(surf.w), height(surf.h) {
 	SDL_LockSurface(&surf);
     defer {
         SDL_UnlockSurface(&surf);
     };
     byte size = surf.format->BytesPerPixel;
     data.resize(surf.w * surf.h);
-    this->width = surf.w;
-    this->height = surf.h;
 	memcpy(data.data(), surf.pixels, width * height * size);
 }

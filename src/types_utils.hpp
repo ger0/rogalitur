@@ -10,6 +10,9 @@ using i64 = int_fast64_t;
 using i32 = int_fast32_t;
 using byte = unsigned char;
 
+template <typename... T>
+using Uq_ptr = std::unique_ptr<T...>;
+
 #define DEBUG
 
 // defer

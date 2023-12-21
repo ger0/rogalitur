@@ -22,6 +22,12 @@ static std::vector<ID> player_entities;
 static std::unordered_map<ID, Physics> physics_comps;
 static std::unordered_map<ID, Renderable> render_comps;
 
+constexpr u64 fps_cap = 240;
+constexpr u64 frame_min_dur = 1'000 / fps_cap;
+
+constexpr u64 sprite_ani_fps = 10;
+constexpr u64 sprite_frame_dur = 1'000 / sprite_ani_fps;
+
 struct Settings {
     u32 width  = 800;
     u32 height = 600;
@@ -33,18 +39,13 @@ enum GameState : byte {
     stopping,
 } STATE;
 
-void add_new_player(Vec2i pos) {
+void spawn_player() {
     Entity player = create_new_entity(PLAYER_FLAG | PHYSICS_FLAG | RENDER_FLAG);
     entities.push_back(player);
 
     Physics player_phys;
     player_phys.loc = Location::air;
     physics_comps[player.id] = player_phys;
-
-    Renderable player_rend;
-    player_rend.pos = {.x = pos.x, .y = pos.y};
-    player_rend.bnd = {.x = 12, .y = 24};
-    render_comps[player.id] = player_rend;
 
     player_entities.push_back(player.id);
 }
@@ -80,6 +81,7 @@ void poll_events(SDL_Event& event) {
 void handle_entities(SDL_Window* wndw, SDL_Renderer* rndr, const Map& map) {
     for (const auto& entity : entities) {
         if (entity.flags & PHYSICS_FLAG) {
+            // ???
             if (entity.flags & RENDER_FLAG) {
                 auto& comp = physics_comps.at(entity.id);
                 auto& rend = render_comps.at(entity.id);
@@ -94,12 +96,23 @@ void handle_entities(SDL_Window* wndw, SDL_Renderer* rndr, const Map& map) {
             // render 
             SDL_Rect rect = {
                 elem.pos.x,
-                (int)map.height - elem.pos.y, 
+                (int)map.height - (elem.pos.y + elem.bnd.y), 
                 elem.bnd.x, 
                 elem.bnd.y
             };
-            SDL_SetRenderDrawColor(rndr, 255, 0, 0, 255);
-            SDL_RenderFillRect(rndr, &rect);
+            static byte frame = 0;
+            static unsigned subframe = 0;
+            const auto count_frames = elem.sprites.size();
+            if (count_frames > 0) {
+                SDL_RenderCopy(rndr, elem.sprites[frame % count_frames], NULL, &rect); 
+                subframe++;
+                if (subframe % sprite_frame_dur == 0) {
+                    frame = frame + 1 % count_frames; 
+                    subframe = 0;
+                }
+            }
+            // SDL_SetRenderDrawColor(rndr, 255, 0, 0, 255);
+            // SDL_RenderFillRect(rndr, &rect);
         }
     }
 }
@@ -110,9 +123,6 @@ int main(int argc, char* argv[]) {
     u64 prev_tick = SDL_GetTicks64();
     u64 curr_tick = prev_tick;
     u64 delta_time;
-
-    constexpr u64 fps_cap = 60;
-    constexpr u64 frame_min_dur = 1'000 / fps_cap;
     u64 prev_frame = SDL_GetTicks64();
     u64 delta_frame;
 
@@ -141,8 +151,7 @@ int main(int argc, char* argv[]) {
 
     // DEBUG TESTING
     auto surf = SDL_LoadBMP("../assets/first_map.bmp");
-    Map map;
-    map.load_from_sdl(*surf);
+    Map map(*surf);
     auto map_texture = SDL_CreateTextureFromSurface(renderer, surf);
     defer {
         SDL_DestroyTexture(map_texture);
@@ -153,7 +162,19 @@ int main(int argc, char* argv[]) {
     }
     // -----------------------------------
     // player entity init
-    add_new_player(Vec2i{400,300});
+    spawn_player();
+
+    // player sprite init 
+    Renderable player_rend {
+        .pos = {.x = static_cast<int>(map.width / 2), .y = static_cast<int>(map.height / 2)},
+        .bnd = {.x = 24, .y = 36},
+    };
+    player_rend.add_sprite(renderer, "../assets/char0.bmp");
+    player_rend.add_sprite(renderer, "../assets/char1.bmp");
+
+    for (const auto& id : player_entities) {
+        render_comps[id] = player_rend;
+    }
     
     STATE = playing;
     SDL_Event event;

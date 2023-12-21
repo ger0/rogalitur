@@ -30,9 +30,9 @@ struct Physics {
     } vel;
 
     struct Acceleration {
-        float   x = 2.f;
-        float   y = 5.f;
-        float   g = 0.009f;
+        float   x = 1.f;
+        float   y = 1.0f;
+        float   g = 0.02f;
     } accel;
 
     Direction   dir;

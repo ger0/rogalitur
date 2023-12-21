@@ -31,7 +31,7 @@ struct Physics {
 
     struct Acceleration {
         float   x = 1.f;
-        float   y = 1.0f;
+        float   y = 1.5f;
         float   g = 0.02f;
     } accel;
 

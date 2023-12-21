@@ -1,6 +1,8 @@
 #include "types_utils.hpp"
 #include "physics.hpp"
 
+constexpr int max_step = 14;
+
 void update_move(Physics &comp, Direction dir, MoveType type) {
     if (type == MoveType::move) {
         switch (dir) {
@@ -44,9 +46,7 @@ void update_move(Physics &comp, Direction dir, MoveType type) {
 enum Collision_Type {
     NONE = false,
     BOT_COLLISION,
-    SIDE_COLLISION,
-    TOP_COLLISION,
-    MID_COLLISION
+    COLLISION
 };
 
 // check for collisions between a bytearray and a rectangle
@@ -58,14 +58,8 @@ Collision_Type check_collision(const Map& map, Vec2i &pos, Vec2i &bnd)  {
                 if (h == 0) {
                     //LOG_DBG("{} {} : {}", w + pos.x, pos.y - h, pix); 
                     return BOT_COLLISION;
-                } else if (w == bnd.x || w == 0) {
-                    // LOG_DBG("{} {} : {}", w, h, pix); 
-                    return SIDE_COLLISION;
-                } else if (h == bnd.y) {
-                    //LOG_DBG("{} {} : {}", w + pos.x, pos.y - h, pix); 
-                    return TOP_COLLISION;
                 } else {
-                    return MID_COLLISION;
+                    return COLLISION;
                 }
             }
         }
@@ -112,11 +106,10 @@ void update_tick(Physics &comp, const Map &map, Vec2i &pos, Vec2i &bnd) {
             LOG_DBG("Landed on the ground!");
         } else {
             LOG_DBG("BOT COLLISION");
-            for (u32 off_y = -3; off_y <= 3; off_y++) {
+            for (u32 off_y = -max_step; off_y <= max_step; off_y++) {
                 new_pos.y += off_y;
                 collision = check_collision(map, new_pos, bnd);
                 if (collision == Collision_Type::NONE) {
-                    LOG_DBG("shifted y");
                     pos.x = new_pos.x;
                     pos.y = new_pos.y;
                     return;
@@ -124,21 +117,10 @@ void update_tick(Physics &comp, const Map &map, Vec2i &pos, Vec2i &bnd) {
             }
             comp.vel.x = 0.f;
         }
-    } else if (collision == Collision_Type::SIDE_COLLISION) {
-        comp.vel.x = 0;
-        comp.loc = Location::ground;
-        LOG_DBG("SIDE COLL!");
-    } else if (collision == Collision_Type::TOP_COLLISION) {
-        if (comp.loc == Location::ground) {
-            comp.vel.x = 0;
-        } else if (comp.loc == Location::air) {
-            comp.vel.y = 0;
-        }
-        LOG_DBG("TOP COLL!");
-    } else if (collision == Collision_Type::MID_COLLISION) {
+    } else if (collision == Collision_Type::COLLISION) {
         comp.vel.x = 0;
         comp.vel.y = 0;
-        LOG_DBG("MID COLL");
+        LOG_DBG("COLLISION");
     } else {
         comp.vel = vel;
         comp.accel = accel;

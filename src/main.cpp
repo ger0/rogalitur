@@ -45,6 +45,7 @@ void spawn_player() {
 
     Physics player_phys;
     player_phys.loc = Location::air;
+    player_phys.pos = {CONF.width / 2.f, CONF.height / 2.f};
     physics_comps[player.id] = player_phys;
 
     player_entities.push_back(player.id);
@@ -81,11 +82,14 @@ void poll_events(SDL_Event& event) {
 void handle_entities(SDL_Window* wndw, SDL_Renderer* rndr, const Map& map) {
     for (const auto& entity : entities) {
         if (entity.flags & PHYSICS_FLAG) {
-            // ???
+            auto& comp = physics_comps.at(entity.id);
+            update_tick(comp, map);
+
             if (entity.flags & RENDER_FLAG) {
-                auto& comp = physics_comps.at(entity.id);
+                //LOG_DBG("{} {}", comp.pos.x, comp.pos.y);
                 auto& rend = render_comps.at(entity.id);
-                update_tick(comp, map, rend.pos, rend.bnd);
+                rend.pos.x = comp.pos.x;
+                rend.pos.y = comp.pos.y;
             }
         }
 
@@ -96,7 +100,7 @@ void handle_entities(SDL_Window* wndw, SDL_Renderer* rndr, const Map& map) {
             // render 
             SDL_Rect rect = {
                 elem.pos.x,
-                (int)map.height - (elem.pos.y + elem.bnd.y), 
+                static_cast<int>(CONF.height - elem.pos.y - elem.bnd.y), 
                 elem.bnd.x, 
                 elem.bnd.y
             };
@@ -111,8 +115,6 @@ void handle_entities(SDL_Window* wndw, SDL_Renderer* rndr, const Map& map) {
                     subframe = 0;
                 }
             }
-            // SDL_SetRenderDrawColor(rndr, 255, 0, 0, 255);
-            // SDL_RenderFillRect(rndr, &rect);
         }
     }
 }
@@ -150,8 +152,8 @@ int main(int argc, char* argv[]) {
     // -----------------------------------
 
     // DEBUG TESTING
-    auto surf = SDL_LoadBMP("../assets/first_map.bmp");
-    Map map(*surf);
+    auto surf = SDL_LoadBMP("../assets/second_map.bmp");
+    Map map(*surf, CONF.width, CONF.height);
     auto map_texture = SDL_CreateTextureFromSurface(renderer, surf);
     defer {
         SDL_DestroyTexture(map_texture);
@@ -166,7 +168,6 @@ int main(int argc, char* argv[]) {
 
     // player sprite init 
     Renderable player_rend {
-        .pos = {.x = static_cast<int>(map.width / 2), .y = static_cast<int>(map.height / 2)},
         .bnd = {.x = 24, .y = 36},
     };
     player_rend.add_sprite(renderer, "../assets/char0.bmp");

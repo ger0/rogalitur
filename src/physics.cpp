@@ -45,29 +45,20 @@ void update_move(Physics &comp, Direction dir, MoveType type) {
 
 enum Collision_Type {
     NONE = false,
-    BOT_COLLISION,
     COLLISION
 };
 
 // check for collisions between a bytearray and a rectangle
-Collision_Type check_collision(const Map& map, Vec2i &pos, Vec2i &bnd)  {
-    for (int h = 0; h <= bnd.y; h++) {
-        for (int w = 0; w <= bnd.x; w++) {
-            const auto& pix = map.at(Vec2i{pos.x + w, pos.y + h});
-            if (pix) {
-                if (h == 0) {
-                    //LOG_DBG("{} {} : {}", w + pos.x, pos.y - h, pix); 
-                    return BOT_COLLISION;
-                } else {
-                    return COLLISION;
-                }
-            }
-        }
+inline Collision_Type check_collision(const Map& map, const Position &pos)  {
+    //LOG_DBG("Real Position: {}, {}", pos.x, pos.y);
+    const auto pix = map.at(pos);
+    if (pix) {
+        return COLLISION;
     }
     return NONE;
 }
 
-void update_tick(Physics &comp, const Map &map, Vec2i &pos, Vec2i &bnd) {
+void update_tick(Physics &comp, const Map &map) {
     // Handle movements:
     auto vel   = comp.vel;
     auto accel = comp.accel;
@@ -92,40 +83,38 @@ void update_tick(Physics &comp, const Map &map, Vec2i &pos, Vec2i &bnd) {
     if (comp.loc == air) {
         vel.y -= accel.g;
     }
-    Vec2i new_pos = pos;
-    new_pos.x += (vel.x + 0.5f);
-    new_pos.y += (vel.y + 0.5f);
+    Position new_pos = comp.pos;
+
+    new_pos.x += vel.x;
+    new_pos.y += vel.y;
 
     // calc collisions
-    Collision_Type collision = check_collision(map, new_pos, bnd);
+    Collision_Type collision = check_collision(map, new_pos);
     // LOG_DBG("Coll type: {}", collision);
-    if (collision == Collision_Type::BOT_COLLISION) {
+    if (collision == Collision_Type::COLLISION) {
         if (comp.loc == Location::air) {
             comp.vel.y = 0;
             comp.loc = Location::ground;
             LOG_DBG("Landed on the ground!");
         } else {
-            LOG_DBG("BOT COLLISION");
             for (u32 off_y = -max_step; off_y <= max_step; off_y++) {
                 new_pos.y += off_y;
-                collision = check_collision(map, new_pos, bnd);
+                collision = check_collision(map, new_pos);
                 if (collision == Collision_Type::NONE) {
-                    pos.x = new_pos.x;
-                    pos.y = new_pos.y;
+                    comp.pos.x = new_pos.x;
+                    comp.pos.y = new_pos.y;
+                    comp.vel = vel;
+                    comp.loc = Location::air;
+                    LOG_DBG("Flying!");
                     return;
                 }
             }
             comp.vel.x = 0.f;
         }
-    } else if (collision == Collision_Type::COLLISION) {
-        comp.vel.x = 0;
-        comp.vel.y = 0;
-        LOG_DBG("COLLISION");
     } else {
         comp.vel = vel;
-        comp.accel = accel;
-        pos.x = new_pos.x;
-        pos.y = new_pos.y;
+        comp.pos.x = new_pos.x;
+        comp.pos.y = new_pos.y;
     }
     // LOG_DBG("{} {}, {} {}", pos.x, pos.y, new_pos.x, new_pos.y);
 }

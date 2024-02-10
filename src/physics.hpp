@@ -24,11 +24,11 @@ enum Location : byte {
 };
 
 struct Physics {
+    Position pos;
     struct Velocity {
         float   x = 0;
         float   y = 0;
     } vel;
-
     struct Acceleration {
         float   x = 1.f;
         float   y = 1.5f;
@@ -40,6 +40,6 @@ struct Physics {
 };
 
 void update_move(Physics &component, Direction dir, MoveType type);
-void update_tick(Physics &comp, const Map &map, Vec2i &pos, Vec2i &bnd);
+void update_tick(Physics &comp, const Map &map);
 
 #endif // RGL_PHYSICS_HPP

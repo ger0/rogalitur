@@ -3,6 +3,8 @@
 
 #include <cstdint>
 #include <fmt/format.h>
+#include <array>
+#include <vector>
 
 using u64 = uint_fast64_t;
 using u32 = uint_fast32_t;
@@ -12,6 +14,12 @@ using byte = unsigned char;
 
 template <typename... T>
 using Uq_ptr = std::unique_ptr<T...>;
+
+template <typename T, size_t n>
+using Arr = std::array<T, n>;
+
+template <typename T>
+using Vec = std::vector<T>;
 
 #define DEBUG
 

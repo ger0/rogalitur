@@ -151,6 +151,10 @@ int main(int argc, char* argv[]) {
     }
     // -----------------------------------
 
+    Map wfc_map = generate_map(CONF.width, CONF.height);
+    wfc_map.iterate();
+
+    /*
     // DEBUG TESTING
     auto surf = SDL_LoadBMP("../assets/second_map.bmp");
     Map map(*surf, CONF.width, CONF.height);
@@ -202,5 +206,6 @@ int main(int argc, char* argv[]) {
         prev_frame = curr_tick;
     }
 
+    */
     return EXIT_SUCCESS;
 }

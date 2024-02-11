@@ -52,7 +52,7 @@ enum Collision_Type {
 inline Collision_Type check_collision(const Map& map, const Position &pos)  {
     //LOG_DBG("Real Position: {}, {}", pos.x, pos.y);
     const auto pix = map.at(pos);
-    if (pix) {
+    if (pix != Tile::Empty) {
         return COLLISION;
     }
     return NONE;

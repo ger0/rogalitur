@@ -10,12 +10,12 @@ struct Position {
     float   y = 0.f;
 };
 
-enum Tile: byte {
-    Wall    = 0,
-    Empty   = 1,
-    Stairs  = 2,
-    Floor   = 3,
-    Unknown,
+enum Tile: char {
+    Wall    = '#',
+    Empty   = ' ',
+    Stairs  = '+',
+    Floor   = '_',
+    Unknown = '?',
 };
 
 struct Map {

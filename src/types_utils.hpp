@@ -8,6 +8,7 @@
 
 using u64 = uint_fast64_t;
 using u32 = uint_fast32_t;
+using u8  = uint_fast8_t;
 using i64 = int_fast64_t;
 using i32 = int_fast32_t;
 using byte = unsigned char;

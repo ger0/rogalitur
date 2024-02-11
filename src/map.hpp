@@ -11,11 +11,12 @@ struct Position {
 };
 
 enum Tile: char {
-    Wall    = '#',
-    Empty   = ' ',
-    Stairs  = '+',
-    Floor   = '_',
-    Unknown = '?',
+    Wall    = 0,
+    Empty   = 1,
+    Stairs  = 2,
+    Floor   = 3,
+    Unknown = 4,
+    TILE_MAX = Unknown
 };
 
 struct Map {
@@ -31,7 +32,6 @@ struct Map {
 
     u32 at(Position pos) const;
     void set(Vec2u pos, Tile);
-    void generate();
 
     // bool load_data(std::string filename);
     void iterate();

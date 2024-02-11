@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <memory>
 #include <cstdlib>
+#include <queue>
 #include <random>
 
 constexpr u32 NEIGHBR_NUM = 8;
@@ -26,6 +27,8 @@ enum Rotation: byte {
 
 // indice ordering for each rotation state
 using N_Indices = Arr<u8, NEIGHBR_NUM>;
+using N_Kernel 	= Arr<Tile, NEIGHBR_NUM>;
+
 constexpr Arr<N_Indices, ROTATION_MAX> ROTATION_LOOKUP_INDICES {
 	// 0   deg:
 	N_Indices{0,1,2,3,4,5,6,7},
@@ -42,7 +45,7 @@ struct Tile_Entry {
 	Tile tile;
 	char debug;
 	float weight;
-	Arr<Tile, NEIGHBR_NUM> neighbours;
+	N_Kernel neighbours;
 	Arr<Rotation, ROTATION_MAX> rotations;
 };
 
@@ -113,54 +116,36 @@ Map generate_map(const u32 width, const u32 height) {
 
 	// neighbour 
 	struct Neigh_Entry {
-		u32 	idx;
-		Tile 	tile;
+		N_Kernel kernel;
+		Vec2u 	position;
 		float 	entropy = FLT_MAX;
+		Arr<float, TILE_MAX> weights;
 	};
-
-	auto get_neighbours = [&map, get_idx](u32 x, u32 y) {
-		Vec<Neigh_Entry> retval(NEIGHBR_NUM);
-		for (i32 w = -1; w <= 1; w++) {
-			for (i32 h = -1; h <= 1; h++) {
-				retval.push_back({
-					get_idx(x + w, y + h),
-					map.tiles[get_idx(x + w, y + h)]
-				});
-			}	
-		}
-		return retval;
-	};
-
-	u32 start_x = width / 2;
-	u32 start_y = height / 2;
-	map.tiles[get_idx(start_x, start_y)] = Tile::Empty;
-
-	// calculate entropy
-	auto todo_list = get_neighbours(start_x, start_y);
 
 	// TODO: Refactor using a different way of storing rotation data
-	auto get_candidates = [&map, get_idx](Vec<Neigh_Entry>& neighbours) -> Vec<Candidate_Id> {
-		Vec<Candidate_Id> candidates;
+	auto get_neigh_weights = [&map, get_idx](Neigh_Entry& neighbours) {
 		for (u32 c_id = 0; c_id < CANDIDATE_PRESETS.size(); c_id++) {
 			const auto& candidate = CANDIDATE_PRESETS.at(c_id);
 			for (const auto& c_rotation : candidate.rotations) {
 				const auto& c_indices = ROTATION_LOOKUP_INDICES.at(c_rotation);
 				// index for default rotation
+				bool is_fitting = true;
 				u8 lhs_idx = 0;
 				for (const u8& rhs_idx : c_indices) {
-					const auto& tile = neighbours.at(lhs_idx).tile;
+					const auto& tile = neighbours.kernel.at(lhs_idx);
 					if (tile == Tile::Unknown) {
 						continue;
 					}
 					else if (tile != candidate.neighbours.at(lhs_idx)) {
-						break;
+						is_fitting = false;
 					}
 					lhs_idx++;
 				}
-				candidates.push_back(c_id);
+				if (is_fitting) {
+					neighbours.weights[candidate.tile] += candidate.weight;
+				}
 			}
 		}
-		return candidates;
 	};
 
 	// calc entropy
@@ -172,6 +157,59 @@ Map generate_map(const u32 width, const u32 height) {
 		}
 		return entropy;
 	};
+
+	// TODO: Add boundary checking
+	auto get_neighbour_info = [&map, get_idx, get_neigh_weights](Vec2u pos) -> std::tuple<Neigh_Entry, Vec<Vec2u>> {
+		N_Kernel kernel;
+		Vec<Vec2u> unk_positions;
+		u32 i = 0;
+		for (i32 h = 1; h >= -1; h--) {
+			for (i32 w = -1; w <= 1; w++) {
+				const auto& tile = map.tiles.at(get_idx(pos.x + w, pos.y + h));
+				kernel[i] = tile;
+				if (tile == Tile::Unknown) {
+					unk_positions.push_back({pos.x + w, pos.y + h});
+				}
+				i++;
+			}	
+		}
+		Neigh_Entry cell {
+			.kernel = kernel,
+			.position = pos,
+		};
+		get_neigh_weights(cell);
+		return std::make_tuple(cell, unk_positions);
+	};
+
+    auto compare = [&](Neigh_Entry const& lhs, Neigh_Entry const& rhs) {
+        return lhs.entropy > rhs.entropy;
+    };
+
+    std::priority_queue<
+        Neigh_Entry,
+        std::deque<Neigh_Entry>,
+        decltype(compare)
+    > unknowns(compare);
+
+	// spawn
+	u32 start_x = width / 2;
+	u32 start_y = height / 2;
+	map.tiles[get_idx(start_x, start_y)] = Tile::Empty;
+
+	// calculate entropy
+	auto [_, unk_positions] = get_neighbour_info({start_x, start_y});
+
+	for (const auto& pos : unk_positions) {
+		auto [unknown_cell, poses] = get_neighbour_info(pos);
+		//unknowns.push(neighbour);
+	}
+
+    while (!unknowns.empty()) {
+		auto current = std::move(unknowns.top());
+		unknowns.pop();
+		
+    }
+
 	return map;
 }
 
@@ -227,12 +265,4 @@ Map::Map(u32 width, u32 height, u32 window_w, u32 window_h):
 	cell_width(window_w  / (float)width), 
 	cell_height(window_h / (float)height) {
 	tiles.resize(width * height);
-}
-
-void Map::generate() {
-	this->set({0, 0}, Tile::Wall);
-	for (u32 y = 0; y < height; y++) {
-		for (u32 x = 0; x < width; x++) {
-		}
-	}
 }

@@ -52,8 +52,8 @@ struct Vec2i {
 };
 
 struct Vec2u {
-    unsigned x;
-    unsigned y;
+    u32 x;
+    u32 y;
 };
 
 #endif // RGL_TYPES_HPP

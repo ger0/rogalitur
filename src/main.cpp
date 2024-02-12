@@ -1,6 +1,5 @@
 #include <cstdlib>
 #include <fmt/printf.h>
-#include <cstdint>
 #include <unordered_map>
 
 #include <SDL2/SDL.h>
@@ -152,7 +151,7 @@ int main(int argc, char* argv[]) {
     // -----------------------------------
 
     Map wfc_map = generate_map(CONF.width, CONF.height);
-    wfc_map.iterate();
+    //wfc_map.iterate();
 
     /*
     // DEBUG TESTING

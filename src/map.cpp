@@ -1,9 +1,6 @@
 #include "map.hpp"
 #include <cstdint>
-#include <memory>
-#include <cstdlib>
 #include <queue>
-#include <random>
 
 constexpr u32 NEIGHBR_NUM = 8;
 
@@ -44,18 +41,18 @@ struct Tile_Entry {
 	const char* id;
 	Tile tile;
 	char debug;
-	float weight;
+	u32  weight;
 	N_Kernel neighbours;
 	Arr<Rotation, ROTATION_MAX> rotations;
 };
 
 using Candidate_Id = u32;
-constexpr Arr<Tile_Entry, Tile::Unknown> CANDIDATE_PRESETS = {{
+constexpr Arr<Tile_Entry, 5> CANDIDATE_PRESETS = {{
 	{
-		.id 	= "Corner",
+		.id 	= "Wall_Corner",
 		.tile 	= Wall,
 		.debug 	= '#',
-		.weight = 20.f,
+		.weight = 10,
 		.neighbours = {
 			Wall, Wall, Wall,
 			Wall,       Wall,
@@ -66,10 +63,24 @@ constexpr Arr<Tile_Entry, Tile::Unknown> CANDIDATE_PRESETS = {{
 		}
 	},
 	{
+		.id 	= "Empty_Corner",
+		.tile 	= Empty,
+		.debug 	= '#',
+		.weight = 10,
+		.neighbours = {
+			Wall,  Wall,  Wall,
+			Wall,         Empty,
+			Wall,  Empty, Empty
+		},
+		.rotations = {
+			ROTATION_0, ROTATION_90, ROTATION_180, ROTATION_270
+		}
+	},
+	{
 		.id 	= "Wall",
 		.tile 	= Wall,
 		.debug  = '#',
-		.weight = 30.f,
+		.weight = 20,
 		.neighbours = {
 			Wall, Wall, Empty,
 			Wall,       Empty,
@@ -80,10 +91,24 @@ constexpr Arr<Tile_Entry, Tile::Unknown> CANDIDATE_PRESETS = {{
 		}
 	},
 	{
+		.id 	= "Empty_Wall",
+		.tile 	= Empty,
+		.debug  = '#',
+		.weight = 20,
+		.neighbours = {
+			Wall, Empty, Empty,
+			Wall,        Empty,
+			Wall, Empty, Empty
+		},
+		.rotations = {
+			ROTATION_0, ROTATION_90, ROTATION_180, ROTATION_270
+		}
+	},
+	{
 		.id 	= "Room",
 		.tile 	= Empty,
 		.debug  = ' ',
-		.weight = 30.f,
+		.weight = 30,
 		.neighbours = {
 			Empty, Empty, Empty,
 			Empty,        Empty,
@@ -95,6 +120,7 @@ constexpr Arr<Tile_Entry, Tile::Unknown> CANDIDATE_PRESETS = {{
 
 Map generate_map(const u32 width, const u32 height) {
 	Map map(width, height);
+	srand(time(NULL));
 
 	auto get_idx = [width, height](u32 x, u32 y) {
 		return width * y + x;
@@ -120,10 +146,11 @@ Map generate_map(const u32 width, const u32 height) {
 		Vec2u 	position;
 		float 	entropy = FLT_MAX;
 		Arr<float, TILE_MAX> weights;
+		u32 	total_weight;
 	};
 
 	// TODO: Refactor using a different way of storing rotation data
-	auto get_neigh_weights = [&map, get_idx](Neigh_Entry& neighbours) {
+	auto calc_weights = [&map, get_idx](Neigh_Entry& neighbours) {
 		for (u32 c_id = 0; c_id < CANDIDATE_PRESETS.size(); c_id++) {
 			const auto& candidate = CANDIDATE_PRESETS.at(c_id);
 			for (const auto& c_rotation : candidate.rotations) {
@@ -143,23 +170,14 @@ Map generate_map(const u32 width, const u32 height) {
 				}
 				if (is_fitting) {
 					neighbours.weights[candidate.tile] += candidate.weight;
+					neighbours.total_weight += candidate.weight;
 				}
 			}
 		}
 	};
 
-	// calc entropy
-	auto calc_entropy = [&map, get_idx](Vec<Candidate_Id> candidate_ids) {
-		float entropy = 0.f;
-		for (const auto& id : candidate_ids) {
-			const auto& probability = CANDIDATE_PRESETS.at(id).weight / 100.f;
-			entropy -= probability * log2(probability);
-		}
-		return entropy;
-	};
-
 	// TODO: Add boundary checking
-	auto get_neighbour_info = [&map, get_idx, get_neigh_weights](Vec2u pos) -> std::tuple<Neigh_Entry, Vec<Vec2u>> {
+	auto get_neighbour_info = [&map, get_idx, calc_weights](Vec2u pos) -> std::tuple<Neigh_Entry, Vec<Vec2u>> {
 		N_Kernel kernel;
 		Vec<Vec2u> unk_positions;
 		u32 i = 0;
@@ -177,7 +195,13 @@ Map generate_map(const u32 width, const u32 height) {
 			.kernel = kernel,
 			.position = pos,
 		};
-		get_neigh_weights(cell);
+		calc_weights(cell);
+		// calc entropy for the weights
+		for (const auto& weight : cell.weights) {
+			if (weight == 0) continue;
+			const auto probability = weight / cell.total_weight;
+			cell.entropy -= probability * log2(probability);
+		}
 		return std::make_tuple(cell, unk_positions);
 	};
 
@@ -187,7 +211,7 @@ Map generate_map(const u32 width, const u32 height) {
 
     std::priority_queue<
         Neigh_Entry,
-        std::deque<Neigh_Entry>,
+        std::vector<Neigh_Entry>,
         decltype(compare)
     > unknowns(compare);
 
@@ -196,20 +220,37 @@ Map generate_map(const u32 width, const u32 height) {
 	u32 start_y = height / 2;
 	map.tiles[get_idx(start_x, start_y)] = Tile::Empty;
 
-	// calculate entropy
+	// get neighbouring cells' positions
 	auto [_, unk_positions] = get_neighbour_info({start_x, start_y});
+	Vec<Vec2u> next_unknown_cells;
 
 	for (const auto& pos : unk_positions) {
-		auto [unknown_cell, poses] = get_neighbour_info(pos);
-		//unknowns.push(neighbour);
+		auto [cell, next_neigh_poses] = get_neighbour_info(pos);
+		unknowns.push(cell);
+		// adding neighbouring positions to a list
+		next_unknown_cells.insert(
+			next_unknown_cells.end(),
+			next_neigh_poses.begin(),
+			next_neigh_poses.end()
+		);
 	}
 
     while (!unknowns.empty()) {
 		auto current = std::move(unknowns.top());
 		unknowns.pop();
-		
-    }
 
+		// set the tile
+		int choice = rand() % current.total_weight;
+		for (i32 i = 0; i < current.weights.size(); i++) {
+			choice -= current.weights[i];
+			if (choice <= 0) {
+				const auto& pos = current.position;
+				map.tiles.at(get_idx(pos.x, pos.y)) = (Tile)i;
+				LOG_DBG("Pos: {}, {} ; Chosen: {}", current.position.x, current.position.y, i);
+				break;
+			}
+		}
+    }
 	return map;
 }
 

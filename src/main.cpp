@@ -28,8 +28,8 @@ constexpr u64 sprite_ani_fps = 10;
 constexpr u64 sprite_frame_dur = 1'000 / sprite_ani_fps;
 
 struct Settings {
-    u32 width  = 800;
-    u32 height = 600;
+    u32 width  = 27;
+    u32 height = 27;
 } CONF;
 
 enum GameState : byte {

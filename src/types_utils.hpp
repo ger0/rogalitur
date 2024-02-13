@@ -8,6 +8,7 @@
 
 using u64 = uint_fast64_t;
 using u32 = uint_fast32_t;
+using u16 = uint_fast16_t;
 using u8  = uint_fast8_t;
 using i64 = int_fast64_t;
 using i32 = int_fast32_t;
@@ -55,5 +56,14 @@ struct Vec2u {
     u32 x;
     u32 y;
 };
+
+template <typename T>
+void vec_append(Vec<T>& lhs, Vec<T>& rhs) {
+	lhs.insert(
+		lhs.end(),
+		rhs.begin(),
+		rhs.end()
+	);
+}
 
 #endif // RGL_TYPES_HPP

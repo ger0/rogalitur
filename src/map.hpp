@@ -11,12 +11,12 @@ struct Position {
 };
 
 enum Tile: char {
-    Wall    = 0,
+    Unknown = 0,
     Empty   = 1,
     Stairs  = 2,
     Floor   = 3,
-    Unknown = 4,
-    TILE_MAX = Unknown
+    Wall    = 4,
+    TILE_MAX = Wall
 };
 
 struct Map {
@@ -41,6 +41,6 @@ struct Map {
     Map(u32 width, u32 height);
 };
 
-Map generate_map(u32 width, u32 height);
+void generate_map(u32 width, u32 height);
 
 #endif // RGL_MAP_HPP

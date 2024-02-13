@@ -1,7 +1,5 @@
 #include "map.hpp"
-#include <algorithm>
 #include <cstdint>
-#include <unordered_set>
 
 constexpr u16 NEIGHBR_NUM = 8;
 
@@ -121,16 +119,15 @@ constexpr Arr<WFC_Pattern, 5> CANDIDATE_PRESETS = {{
 
 // neighbour 
 struct Tile_Entry {
-	N_Kernel kernel;
-	Vec2u position;
-	float 	entropy = FLT_MAX;
+	Tile 		tile;
+	bool 		tainted = false;
+	float 		entropy = FLT_MAX;
+	u32 		total_weight;
 	Arr<float, TILE_MAX> weights;
-	u32 	total_weight;
 };
 
-Map generate_map(const u16 width, const u16 height) {
-	// Vec<Tile_Entry> tiles;
-	Map map(width, height);
+void generate_map(const u16 width, const u16 height) {
+	Vec<Tile_Entry> tiles(width * height);
 	srand(time(NULL));
 
 	auto get_idx = [width, height](u16 x, u16 y) {
@@ -142,17 +139,17 @@ Map generate_map(const u16 width, const u16 height) {
 			// Wall boundary around the map
 			if (w == 0 or w == (width - 1) 
 					or h == 0 or h == (height -1)) {
-				map.tiles[get_idx(w, h)] = Tile::Wall;
+				tiles[get_idx(w, h)].tile = Tile::Wall;
 			}
 			// Otherwise unknown
 			else {
-				map.tiles[get_idx(w, h)] = Tile::Unknown;
+				tiles[get_idx(w, h)].tile = Tile::Unknown;
 			}
 		}
 	}
 
 	// TODO: Refactor using a different way of storing rotation data
-	auto calc_weights = [&map, get_idx](Tile_Entry& neighbours) {
+	auto calc_weights = [&](Tile_Entry& cell, N_Kernel& kernel) {
 		for (u16 c_id = 0; c_id < CANDIDATE_PRESETS.size(); c_id++) {
 			const auto& candidate = CANDIDATE_PRESETS.at(c_id);
 			for (const auto& c_rotation : candidate.rotations) {
@@ -161,154 +158,134 @@ Map generate_map(const u16 width, const u16 height) {
 				bool is_fitting = true;
 				u8 lhs_idx = 0;
 				for (const u8& rhs_idx : c_indices) {
-					const auto& tile = neighbours.kernel.at(lhs_idx);
+					const auto& tile = kernel.at(lhs_idx);
 					if (tile == Tile::Unknown) {
 						continue;
 					}
 					else if (tile != candidate.neighbours.at(lhs_idx)) {
 						is_fitting = false;
+						break;
 					}
 					lhs_idx++;
 				}
 				if (is_fitting) {
-					neighbours.weights[candidate.tile] += candidate.weight;
-					neighbours.total_weight += candidate.weight;
+					cell.weights[candidate.tile] += candidate.weight;
+					cell.total_weight += candidate.weight;
 				}
 			}
 		}
 	};
 
+	auto get_idx_vec2u = [&get_idx](const Vec2u vec2) {
+		return get_idx(vec2.x, vec2.y);
+	};
+
 	// TODO: Add boundary checking
-	auto get_neighbour_info = [&map, get_idx, calc_weights](Vec2u pos) -> std::tuple<Tile_Entry, Vec<Vec2u>> {
+	auto calc_cell_info = [&](Vec2u pos) {
+		auto& cell = tiles[get_idx_vec2u(pos)];
 		N_Kernel kernel;
-		Vec<Vec2u> unk_positions;
 		u16 i = 0;
 		for (i32 h = 1; h >= -1; h--) {
 			for (i32 w = -1; w <= 1; w++) {
-				const auto& tile = map.tiles.at(get_idx(pos.x + w, pos.y + h));
-				kernel[i] = tile;
-				if (tile == Tile::Unknown) {
-					unk_positions.push_back({pos.x + w, pos.y + h});
+				auto& n_tile = tiles.at(get_idx(pos.x + w, pos.y + h));
+				kernel[i] = n_tile.tile;
+				if (n_tile.tile == Tile::Unknown) {
+					if (n_tile.tainted == false) {
+						LOG_DBG(" 	Tainted at: {}, {}", pos.x + w, pos.y + h);
+					}
+					n_tile.tainted = true;
 				}
 				i++;
 			}	
 		}
-		Tile_Entry cell {
-			.kernel = kernel,
-			.position = pos,
-		};
-		calc_weights(cell);
+
+		cell.tainted = false;
+		calc_weights(cell, kernel);
+
 		// calc entropy for the weights
 		for (const auto& weight : cell.weights) {
 			if (weight == 0) continue;
 			const auto probability = weight / cell.total_weight;
 			cell.entropy -= probability * log2(probability);
 		}
-		return std::make_tuple(cell, unk_positions);
+		LOG_DBG("Updated cell at: {}, {}; with entropy {}", pos.x, pos.y, cell.entropy);
 	};
 
     auto compare = [&](Tile_Entry const& lhs, Tile_Entry const& rhs) {
         return lhs.entropy > rhs.entropy;
     };
 
-	Vec<Tile_Entry> unknowns;
-
-	auto sort_unknowns = [&unknowns, &compare]() {
-		std::sort(unknowns.begin(), unknowns.end(), compare);
-	};
-
 	// spawn
 	u16 start_x = width / 2;
 	u16 start_y = height / 2;
-	map.tiles[get_idx(start_x, start_y)] = Tile::Empty;
+	tiles[get_idx(start_x, start_y)].tile = Tile::Empty;
 
 	// get neighbouring cells' positions
-	auto [_, unk_positions] = get_neighbour_info({start_x, start_y});
-	auto get_idx_vec2u = [&get_idx](const Vec2u vec2) {
-		return get_idx(vec2.x, vec2.y);
-	};
+	calc_cell_info({start_x, start_y});
+	// TODO: REMOVE
 	auto vec2u_equal = [](const Vec2u lhs, const Vec2u rhs) {
 		return lhs.x == rhs.x && lhs.y == rhs.y;
 	};
-	std::unordered_set<
-		Vec2u, 
-		decltype(get_idx_vec2u), 
-		decltype(vec2u_equal)
-	> next_unknown_cells(unk_positions.size(), get_idx_vec2u, vec2u_equal);
 
-	for (const auto& pos : unk_positions) {
-		auto [cell, next_neigh_poses] = get_neighbour_info(pos);
-		unknowns.push_back(cell);
-		// adding neighbouring positions to a list
-		// vec_append(next_unknown_cells, next_neigh_poses);
-		next_unknown_cells.insert(next_neigh_poses.begin(), next_neigh_poses.end());
-	}
-
-    while (!unknowns.empty()) {
-		sort_unknowns();
-
-		Tile_Entry current = unknowns.back();
-		unknowns.pop_back();
-		if (map.tiles[get_idx_vec2u(current.position)] != Tile::Unknown) {
-			LOG_ERR("PROBLEM!!!");
+	auto calc_tainted_cells = [&]() {
+		for (u32 y = 0; y < height; y++) {
+			for (u32 x = 0; x < width; x++) {
+				calc_cell_info({x, y});
+			}
 		}
+	};
+
+	Vec2u current_pos;
+	auto set_next_lowest_entropy = [&]() -> bool {
+		float lowest_entropy = FLT_MAX;
+		for (u32 y = 0; y < height; y++) {
+			for (u32 x = 0; x < width; x++) {
+				const auto& cell = tiles[get_idx(x, y)];
+				LOG_DBG("ENTROPY: {}, TILE: {}", cell.entropy, (u32)cell.tile);
+				if (cell.entropy < lowest_entropy && cell.tile == Tile::Unknown) {
+					lowest_entropy = cell.entropy;
+					current_pos.x = x;
+					current_pos.y = y;
+				}
+			}
+		}
+		if (lowest_entropy == FLT_MAX) {
+			LOG_DBG("FOUND NO NEW TILES TO UPDATE");
+			return false;
+		} else {
+			LOG_DBG("FOUND NEW LOWEST ENTROPY AT: {} {}; ENTR: {}", 
+					current_pos.x, current_pos.y ,lowest_entropy);
+			return true;
+		}
+	};
+
+    while (set_next_lowest_entropy()) {
+    	auto& cell = tiles[get_idx_vec2u(current_pos)];
+		LOG_DBG("UNKNOWN TILE AT POS: {}, {}", current_pos.x, current_pos.y);
+		LOG_DBG(" 	entropy: {}, total_weight: {}", cell.entropy, cell.total_weight);
 
 		// set the tile
-		int choice = rand() % current.total_weight;
-		for (i32 i = 0; i < current.weights.size(); i++) {
-			choice -= current.weights[i];
+		int choice = rand() % cell.total_weight;
+		for (i32 i = 0; i < cell.weights.size(); i++) {
+			choice -= cell.weights[i];
 			if (choice > 0) {
 				continue;
 			}
-
 			// set choice 
-			const auto& pos = current.position;
-			map.tiles[get_idx_vec2u(pos)] = (Tile)i;
-			LOG_DBG("UNKNOWN TILE AT POS: {}, {} HAS CHOSEN: {}", current.position.x, current.position.y, i);
-
-			// update existing awaiting unknown tiles neighbouring the new chosen tile
-			// TODO: OPTIMIZE BY USING AN ARRAY INSTEAD
-			for (auto& it : unknowns) {
-				i32 off_x = it.position.x - current.position.x;
-				i32 off_y = it.position.y - current.position.y;
-
-				// HARDCODED!
-				if (off_x >= -1 && off_x <= 1 && off_y >= -1 && off_y <= 1) {
-					auto [new_info, _] = get_neighbour_info(it.position);
-					it = new_info;
-					LOG_DBG(" 	Updated entropy and weights on pos: {}, {}", 
-						new_info.position.x,
-						new_info.position.y);
-				}
-			}
-
-			// TODO: REFACTOR WTF
-			Vec<Vec2u> new_positions;
-			Vec<Tile_Entry> new_unknowns;
-			// add positions to unknowns list for the next iteration
-			for (const auto& next_neighbour : next_unknown_cells) {
-				if (map.tiles[get_idx_vec2u(next_neighbour)] != Tile::Unknown) {
-					continue;
-				}
-				auto [new_info, new_unk_poses] = get_neighbour_info(next_neighbour);
-				// next_unknown_cells.erase(new_info.position);
-				if (new_info.total_weight == 0) {
-					LOG_ERR("WEIGHT CANNOT BE EQUAL TO 0!!!");
-					continue;
-				}
-				LOG_DBG(" 	Added a new cell to unkowns list on pos: {}, {}", 
-						new_info.position.x,
-						new_info.position.y);
-				new_unknowns.push_back(new_info);
-				vec_append(new_positions, new_unk_poses);
-			}
-			next_unknown_cells.clear();
-			next_unknown_cells.insert(new_positions.begin(), new_positions.end());
-			vec_append(unknowns, new_unknowns);
+			cell.tile = (Tile)i;
+			LOG_DBG(" 	HAS CHOSEN: {}", i);
 			break;
 		}
+		calc_tainted_cells();
     }
-	return map;
+
+	for (u16 i = 0; i < height * width; i++) {
+		if (i % (width) == 0) {
+			printf("\n");
+		}
+		u32 sym = tiles.at(i).tile;
+		printf("%lu", sym);
+	}
 }
 
 // DEBUGGING 

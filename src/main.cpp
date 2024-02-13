@@ -150,7 +150,7 @@ int main(int argc, char* argv[]) {
     }
     // -----------------------------------
 
-    Map wfc_map = generate_map(CONF.width, CONF.height);
+    generate_map(CONF.width, CONF.height);
     //wfc_map.iterate();
 
     /*

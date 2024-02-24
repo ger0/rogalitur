@@ -11,12 +11,12 @@ struct Position {
 };
 
 enum Tile: char {
-    Unknown = 0,
-    Empty   = 1,
-    Stairs  = 2,
-    Floor   = 3,
-    Wall    = 4,
-    TILE_MAX = Wall
+    Empty = 0,
+    Stairs,
+    Floor,
+    Wall,
+    Unknown,
+    TILE_MAX = Unknown 
 };
 
 struct Map {

@@ -1,5 +1,6 @@
 #include "map.hpp"
 #include <cstdint>
+#include <unordered_set>
 
 constexpr u16 NEIGHBR_NUM = 8;
 
@@ -120,8 +121,7 @@ constexpr Arr<WFC_Pattern, 5> CANDIDATE_PRESETS = {{
 // neighbour 
 struct Tile_Entry {
 	Tile 		tile;
-	bool 		tainted = false;
-	float 		entropy = FLT_MAX;
+	float 		entropy = NAN;
 	u32 		total_weight;
 	Arr<float, TILE_MAX> weights;
 };
@@ -171,6 +171,8 @@ void generate_map(const u16 width, const u16 height) {
 				if (is_fitting) {
 					cell.weights[candidate.tile] += candidate.weight;
 					cell.total_weight += candidate.weight;
+					/* LOG_DBG("Added weight {}, {} for {}", cell.weights[candidate.tile],
+							cell.total_weight, (u32)candidate.tile); */
 				}
 			}
 		}
@@ -179,36 +181,52 @@ void generate_map(const u16 width, const u16 height) {
 	auto get_idx_vec2u = [&get_idx](const Vec2u vec2) {
 		return get_idx(vec2.x, vec2.y);
 	};
+	// TODO: REMOVE
+	auto vec2u_equal = [](const Vec2u lhs, const Vec2u rhs) {
+		return lhs.x == rhs.x && lhs.y == rhs.y;
+	};
 
-	// TODO: Add boundary checking
+	std::unordered_set<
+		Vec2u, 
+		decltype(get_idx_vec2u),
+		decltype(vec2u_equal)
+	> next_tainted_cells(1, get_idx_vec2u, vec2u_equal);
+
 	auto calc_cell_info = [&](Vec2u pos) {
 		auto& cell = tiles[get_idx_vec2u(pos)];
 		N_Kernel kernel;
 		u16 i = 0;
+		// taint neighbouring cells (to check)
 		for (i32 h = 1; h >= -1; h--) {
-			for (i32 w = -1; w <= 1; w++) {
-				auto& n_tile = tiles.at(get_idx(pos.x + w, pos.y + h));
-				kernel[i] = n_tile.tile;
-				if (n_tile.tile == Tile::Unknown) {
-					if (n_tile.tainted == false) {
-						LOG_DBG(" 	Tainted at: {}, {}", pos.x + w, pos.y + h);
-					}
-					n_tile.tainted = true;
+			for (i32 w = -1; w <= 1; w++, i++) {
+				auto n_pos = Vec2u{pos.x + w, pos.y + h};
+				if (n_pos.x <= 0 || n_pos.x >= width 
+						|| n_pos.y <= 0 || n_pos.y >= height) {
+					kernel[i] = Tile::Wall;
+					continue;
 				}
-				i++;
+				auto& n_tile = tiles.at(get_idx(n_pos.x, n_pos.y)).tile;
+				kernel[i] = n_tile;
+				if (n_tile == Tile::Unknown) {
+					// LOG_DBG(" 	Tainted at: {}, {}", pos.x + w, pos.y + h);
+					next_tainted_cells.insert(n_pos);
+				}
 			}	
 		}
 
-		cell.tainted = false;
 		calc_weights(cell, kernel);
 
 		// calc entropy for the weights
+		float entropy = 0.f;
 		for (const auto& weight : cell.weights) {
 			if (weight == 0) continue;
 			const auto probability = weight / cell.total_weight;
-			cell.entropy -= probability * log2(probability);
+			entropy -= probability * log2(probability);
+			/* LOG_DBG("prob: {}, log: {}, total: {}, entropy: {}", 
+					probability, log2(probability), cell.total_weight, cell.entropy); */
 		}
-		LOG_DBG("Updated cell at: {}, {}; with entropy {}", pos.x, pos.y, cell.entropy);
+		cell.entropy = entropy;
+		//LOG_DBG("Updated cell at: {}, {}; with entropy {}", pos.x, pos.y, cell.entropy);
 	};
 
     auto compare = [&](Tile_Entry const& lhs, Tile_Entry const& rhs) {
@@ -222,26 +240,29 @@ void generate_map(const u16 width, const u16 height) {
 
 	// get neighbouring cells' positions
 	calc_cell_info({start_x, start_y});
-	// TODO: REMOVE
-	auto vec2u_equal = [](const Vec2u lhs, const Vec2u rhs) {
-		return lhs.x == rhs.x && lhs.y == rhs.y;
-	};
 
 	auto calc_tainted_cells = [&]() {
-		for (u32 y = 0; y < height; y++) {
-			for (u32 x = 0; x < width; x++) {
-				calc_cell_info({x, y});
-			}
+		auto tainted_cells(std::move(next_tainted_cells));
+		next_tainted_cells.clear();
+		for (const auto& cell_pos : tainted_cells) {
+			calc_cell_info(cell_pos);
 		}
 	};
 
 	Vec2u current_pos;
 	auto set_next_lowest_entropy = [&]() -> bool {
+		calc_tainted_cells();
 		float lowest_entropy = FLT_MAX;
 		for (u32 y = 0; y < height; y++) {
 			for (u32 x = 0; x < width; x++) {
 				const auto& cell = tiles[get_idx(x, y)];
-				LOG_DBG("ENTROPY: {}, TILE: {}", cell.entropy, (u32)cell.tile);
+				if (isnan(cell.entropy)) { 
+					continue;
+				}
+				/* LOG_DBG("ENTROPY: {}, TILE: {}, WEIGHTS: {}", 
+						cell.entropy, 
+						(u32)cell.tile, 
+						fmt::join(cell.weights, ", ")); */
 				if (cell.entropy < lowest_entropy && cell.tile == Tile::Unknown) {
 					lowest_entropy = cell.entropy;
 					current_pos.x = x;
@@ -253,12 +274,13 @@ void generate_map(const u16 width, const u16 height) {
 			LOG_DBG("FOUND NO NEW TILES TO UPDATE");
 			return false;
 		} else {
-			LOG_DBG("FOUND NEW LOWEST ENTROPY AT: {} {}; ENTR: {}", 
-					current_pos.x, current_pos.y ,lowest_entropy);
+			/* LOG_DBG("FOUND NEW LOWEST ENTROPY AT: {} {}; ENTR: {}", 
+					current_pos.x, current_pos.y ,lowest_entropy); */
 			return true;
 		}
 	};
 
+	u32 iter = 0;
     while (set_next_lowest_entropy()) {
     	auto& cell = tiles[get_idx_vec2u(current_pos)];
 		LOG_DBG("UNKNOWN TILE AT POS: {}, {}", current_pos.x, current_pos.y);
@@ -273,10 +295,10 @@ void generate_map(const u16 width, const u16 height) {
 			}
 			// set choice 
 			cell.tile = (Tile)i;
-			LOG_DBG(" 	HAS CHOSEN: {}", i);
 			break;
 		}
-		calc_tainted_cells();
+		LOG_DBG(" 	HAS CHOSEN: {}", (u32)cell.tile);
+		iter++;
     }
 
 	for (u16 i = 0; i < height * width; i++) {

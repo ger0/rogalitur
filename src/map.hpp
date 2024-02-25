@@ -34,7 +34,7 @@ struct Map {
     void set(Vec2u pos, Tile);
 
     // bool load_data(std::string filename);
-    void iterate();
+    
     // INIT BASED ON SDL_SURFACE
     Map(SDL_Surface &surf, u32 wndw_w, u32 wndw_h);
     Map(u32 width, u32 height, u32 wndw_w, u32 wndw_h);

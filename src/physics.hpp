@@ -1,9 +1,13 @@
 #ifndef RGL_PHYSICS_HPP
 #define RGL_PHYSICS_HPP
 
-#include "entity.hpp"
 #include "types_utils.hpp"
 #include "map.hpp"
+
+struct Position {
+    float x = 0.f;
+    float y = 0.f;
+};
 
 enum MoveType {
     move,

@@ -48,11 +48,15 @@ enum Collision_Type {
     COLLISION
 };
 
+Vec2u pos_to_vec2u(const Position& pos)  {
+    return Vec2u{(u32)pos.x, (u32)pos.y};
+}
+
 // check for collisions between a bytearray and a rectangle
 inline Collision_Type check_collision(const Map& map, const Position &pos)  {
     //LOG_DBG("Real Position: {}, {}", pos.x, pos.y);
-    const auto pix = map.at(pos);
-    if (pix != Tile::Empty) {
+    const auto tile = map.at(pos_to_vec2u(pos));
+    if (tile != Tile::Empty) {
         return COLLISION;
     }
     return NONE;

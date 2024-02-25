@@ -150,19 +150,18 @@ int main(int argc, char* argv[]) {
     }
     // -----------------------------------
 
-    generate_map(CONF.width, CONF.height);
-    //wfc_map.iterate();
-
-    /*
+    Map map = generate_map(CONF.width, CONF.height);
     // DEBUG TESTING
-    auto surf = SDL_LoadBMP("../assets/second_map.bmp");
-    Map map(*surf, CONF.width, CONF.height);
-    auto map_texture = SDL_CreateTextureFromSurface(renderer, surf);
+    auto brick_bg   = SDL_LoadBMP("../assets/bricks_background.bmp");
+    auto brick_wall = SDL_LoadBMP("../assets/bricks.bmp");
+    auto brick_bg_tex  = SDL_CreateTextureFromSurface(renderer, brick_bg);
+    auto brick_wall_tex = SDL_CreateTextureFromSurface(renderer, brick_wall);
     defer {
-        SDL_DestroyTexture(map_texture);
+        SDL_DestroyTexture(brick_bg_tex);
+        SDL_DestroyTexture(brick_wall_tex);
     };
-    if (map_texture == nullptr) {
-        LOG_ERR("Failed to generate texture!");
+    if (brick_bg_tex == nullptr || brick_wall_tex == nullptr) {
+        LOG_ERR("Failed to initialise textures!");
         return EXIT_FAILURE;
     }
     // -----------------------------------
@@ -184,13 +183,13 @@ int main(int argc, char* argv[]) {
     SDL_Event event;
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
     SDL_RenderClear(renderer);
-    SDL_RenderCopy(renderer, map_texture, NULL, NULL);
+    // SDL_RenderCopy(renderer, map_texture, NULL, NULL);
 
     while (STATE != GameState::stopping) {
         poll_events(event);
 
         SDL_RenderClear(renderer);
-        SDL_RenderCopy(renderer, map_texture, nullptr, nullptr);
+        //SDL_RenderCopy(renderer, map_texture, nullptr, nullptr);
         handle_entities(window, renderer, map);
         SDL_RenderPresent(renderer);
 
@@ -205,6 +204,5 @@ int main(int argc, char* argv[]) {
         prev_frame = curr_tick;
     }
 
-    */
     return EXIT_SUCCESS;
 }

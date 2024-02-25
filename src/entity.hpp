@@ -1,7 +1,6 @@
 #ifndef RGL_ENTITY_HPP
 #define RGL_ENTITY_HPP
 
-#include "map.hpp"
 #include "types_utils.hpp"
 
 using ID = u32;

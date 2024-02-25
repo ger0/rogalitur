@@ -1,5 +1,4 @@
 #include "map.hpp"
-#include <cstdint>
 #include <unordered_set>
 
 constexpr u16 NEIGHBR_NUM = 8;
@@ -126,7 +125,7 @@ struct Tile_Entry {
 	Arr<float, TILE_MAX> weights;
 };
 
-static u32 width, height;
+static u16 width, height;
 
 u32 get_idx(u16 x, u16 y) {
 	return width * y + x;
@@ -220,8 +219,9 @@ void calc_cell_info(Vec2u pos, Vec<Tile_Entry>& tiles) {
 	//LOG_DBG("Updated cell at: {}, {}; with entropy {}", pos.x, pos.y, cell.entropy);
 };
 
-void generate_map(const u16 m_width, const u16 m_height) {
-	// TODO: temporary fix
+Map generate_map(const u16 m_width, const u16 m_height) {
+	Map map(m_width, m_height);
+	// temporary fix
 	width = m_width;
 	height = m_height;
 
@@ -305,53 +305,25 @@ void generate_map(const u16 m_width, const u16 m_height) {
 
 	// output the result
 	for (u16 i = 0; i < height * width; i++) {
+		map.data[i] = tiles[i].tile;
 		if (i % (width) == 0) {
 			printf("\n");
 		}
 		u32 sym = tiles.at(i).tile;
 		printf("%lu ", sym);
 	}
+	return map;
 }
 
-u16 Map::at(Position pos) const {
-	auto c_pos = pos;	
-	c_pos.x = pos.x / cell_width;
-	c_pos.y = pos.y / cell_height;
-
-	if (c_pos.x <= 0 || c_pos.y <= 0 || c_pos.x >= width || c_pos.y >= height) {
-		return UINT32_MAX;
+Tile Map::at(Vec2u pos) const {
+	if (pos.x <= 0 || pos.x >= width 
+		|| pos.y <= 0 || pos.y >= height) {
+		return Tile::Wall;
+	} else {
+		return data[pos.x + (width * pos.y)];
 	}
-	return this->tiles[c_pos.x + c_pos.y * width];
-}
-
-void Map::set(Vec2u pos, Tile tile) {
-	this->data[pos.x + pos.y * width] = tile;
-}
-
-// todo: remove 
-Map::Map(SDL_Surface &surf, u16 window_w, u16 window_h): 
-		width(surf.w), 
-		height(surf.h), 
-		cell_width(window_w / (float)surf.w), 
-		cell_height(window_h / (float)surf.h) {
-	SDL_LockSurface(&surf);
-    defer {
-        SDL_UnlockSurface(&surf);
-    };
-    byte size = surf.format->BytesPerPixel;
-    data.resize(surf.w * surf.h);
-	memcpy(data.data(), surf.pixels, width * height * size);
-	LOG("{} {} {} {}", width, height, cell_width, cell_height);
 }
 
 Map::Map(u16 width, u16 height): height(height), width(width) {
-	this->tiles.resize(width * height);
-}
-
-Map::Map(u16 width, u16 height, u16 window_w, u16 window_h): 
-	width(width), 
-	height(height), 
-	cell_width(window_w  / (float)width), 
-	cell_height(window_h / (float)height) {
-	tiles.resize(width * height);
+	this->data.resize(width * height);
 }

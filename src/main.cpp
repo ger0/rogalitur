@@ -28,8 +28,8 @@ constexpr u64 sprite_ani_fps = 10;
 constexpr u64 sprite_frame_dur = 1'000 / sprite_ani_fps;
 
 struct Settings {
-    u32 width  = 27;
-    u32 height = 27;
+    u32 width  = 800;
+    u32 height = 600;
 } CONF;
 
 enum GameState : byte {
@@ -65,6 +65,8 @@ void handle_events(SDL_Event& event, MoveType type) {
             case SDLK_UP:       update_move(comp, Dir::jump, type); break;
             case SDLK_SPACE:    update_move(comp, Dir::jump, type); break;
         }
+        auto& rend = render_comps.at(id);
+        rend.dir = comp.dir;
     }
 }
 
@@ -106,8 +108,11 @@ void handle_entities(SDL_Window* wndw, SDL_Renderer* rndr, const Map& map) {
             static byte frame = 0;
             static unsigned subframe = 0;
             const auto count_frames = elem.sprites.size();
+            SDL_RendererFlip mirror_flip = 
+                elem.dir == Direction::left ? SDL_FLIP_HORIZONTAL : SDL_FLIP_NONE;
             if (count_frames > 0) {
-                SDL_RenderCopy(rndr, elem.sprites[frame % count_frames], NULL, &rect); 
+                SDL_RenderCopyEx(rndr, elem.sprites[frame % count_frames], 
+                        nullptr, &rect, 0.0, nullptr, mirror_flip); 
                 subframe++;
                 if (subframe % sprite_frame_dur == 0) {
                     frame = frame + 1 % count_frames; 
@@ -150,20 +155,8 @@ int main(int argc, char* argv[]) {
     }
     // -----------------------------------
 
-    Map map = generate_map(CONF.width, CONF.height);
+    Map map = generate_map(32, 24);
     // DEBUG TESTING
-    auto brick_bg   = SDL_LoadBMP("../assets/bricks_background.bmp");
-    auto brick_wall = SDL_LoadBMP("../assets/bricks.bmp");
-    auto brick_bg_tex  = SDL_CreateTextureFromSurface(renderer, brick_bg);
-    auto brick_wall_tex = SDL_CreateTextureFromSurface(renderer, brick_wall);
-    defer {
-        SDL_DestroyTexture(brick_bg_tex);
-        SDL_DestroyTexture(brick_wall_tex);
-    };
-    if (brick_bg_tex == nullptr || brick_wall_tex == nullptr) {
-        LOG_ERR("Failed to initialise textures!");
-        return EXIT_FAILURE;
-    }
     // -----------------------------------
     // player entity init
     spawn_player();
@@ -174,6 +167,22 @@ int main(int argc, char* argv[]) {
     };
     player_rend.add_sprite(renderer, "../assets/char0.bmp");
     player_rend.add_sprite(renderer, "../assets/char1.bmp");
+    auto brick_bg   = SDL_LoadBMP("../assets/bricks_background.bmp");
+    auto brick_wall = SDL_LoadBMP("../assets/bricks.bmp");
+
+    auto brick_bg_tex  = SDL_CreateTextureFromSurface(renderer, brick_bg);
+    auto brick_wall_tex = SDL_CreateTextureFromSurface(renderer, brick_wall);
+
+    SDL_FreeSurface(brick_wall);
+    SDL_FreeSurface(brick_bg);
+    defer {
+        SDL_DestroyTexture(brick_bg_tex);
+        SDL_DestroyTexture(brick_wall_tex);
+    };
+    if (brick_bg_tex == nullptr || brick_wall_tex == nullptr) {
+        LOG_ERR("Failed to initialise textures!");
+        return EXIT_FAILURE;
+    }
 
     for (const auto& id : player_entities) {
         render_comps[id] = player_rend;
@@ -181,15 +190,53 @@ int main(int argc, char* argv[]) {
     
     STATE = playing;
     SDL_Event event;
-    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-    SDL_RenderClear(renderer);
-    // SDL_RenderCopy(renderer, map_texture, NULL, NULL);
+    SDL_Texture *map_texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_RGBA8888,
+		SDL_TEXTUREACCESS_TARGET, CONF.width, CONF.height);
+    if (map_texture == nullptr) {
+        LOG_ERR("Failed to create map's texture!");
+        return EXIT_FAILURE;
+    }
+	{
+        int tex_w, tex_h;
+        SDL_QueryTexture(brick_wall_tex, nullptr, nullptr, &tex_w, &tex_h);
+        float cell_width = CONF.width / (float)map.width;
+        float cell_height = CONF.height / (float)map.height;
+
+        SDL_Rect dst_rect = {0, 0, (int)(cell_width), (int)cell_height};
+
+        SDL_SetRenderTarget(renderer, map_texture);
+        SDL_RenderClear(renderer);
+        for (size_t y = 0; y < map.height; ++y) {
+            for (size_t x = 0; x < map.width; ++x) {
+                dst_rect.x = x * cell_width;
+                dst_rect.y = y * cell_height;
+
+                // Draw wall or empty space based on the map
+                SDL_Texture* texture;
+                auto tile = map.at({x, y});
+                if (tile == Tile::Wall) {
+                    texture = brick_wall_tex;
+                } else {
+                    texture = brick_bg_tex;
+                }
+                SDL_RenderCopy(renderer, texture, nullptr, &dst_rect);
+            }
+        }
+        SDL_SetRenderTarget(renderer, nullptr);
+    }
+    defer {
+        SDL_DestroyTexture(map_texture);
+    };
+    
+    //SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+    //SDL_RenderClear(renderer);
+    SDL_RenderCopy(renderer, map_texture, NULL, NULL);
 
     while (STATE != GameState::stopping) {
         poll_events(event);
 
-        SDL_RenderClear(renderer);
-        //SDL_RenderCopy(renderer, map_texture, nullptr, nullptr);
+        //SDL_RenderClear(renderer);
+        SDL_RenderCopy(renderer, map_texture, nullptr, nullptr);
         handle_entities(window, renderer, map);
         SDL_RenderPresent(renderer);
 
@@ -203,6 +250,5 @@ int main(int argc, char* argv[]) {
         }
         prev_frame = curr_tick;
     }
-
     return EXIT_SUCCESS;
 }

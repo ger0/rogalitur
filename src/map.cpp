@@ -46,30 +46,16 @@ struct WFC_Pattern {
 };
 
 using Candidate_Id = u16;
-constexpr Arr<WFC_Pattern, 5> CANDIDATE_PRESETS = {{
+constexpr Arr<WFC_Pattern, 4> CANDIDATE_PRESETS = {{
 	{
-		.id 	= "Wall_Corner",
-		.tile 	= Wall,
-		.debug 	= '#',
-		.weight = 10,
-		.neighbours = {
-			Wall, Wall, Wall,
-			Wall,       Wall,
-			Wall, Wall, Empty
-		},
-		.rotations = {
-			ROTATION_0, ROTATION_90, ROTATION_180, ROTATION_270
-		}
-	},
-	{
-		.id 	= "Empty_Corner",
+		.id 	= "Corner",
 		.tile 	= Empty,
 		.debug 	= '#',
-		.weight = 10,
+		.weight = 5,
 		.neighbours = {
-			Wall,  Wall,  Wall,
-			Wall,         Empty,
-			Wall,  Empty, Empty
+			Wall, Wall,  Wall,
+			Wall,        Empty,
+			Wall, Empty, Empty
 		},
 		.rotations = {
 			ROTATION_0, ROTATION_90, ROTATION_180, ROTATION_270
@@ -79,7 +65,7 @@ constexpr Arr<WFC_Pattern, 5> CANDIDATE_PRESETS = {{
 		.id 	= "Wall",
 		.tile 	= Wall,
 		.debug  = '#',
-		.weight = 20,
+		.weight = 10,
 		.neighbours = {
 			Wall, Wall, Empty,
 			Wall,       Empty,
@@ -90,24 +76,22 @@ constexpr Arr<WFC_Pattern, 5> CANDIDATE_PRESETS = {{
 		}
 	},
 	{
-		.id 	= "Empty_Wall",
-		.tile 	= Empty,
+		.id 	= "Full_Wall",
+		.tile 	= Wall,
 		.debug  = '#',
-		.weight = 20,
+		.weight = 50,
 		.neighbours = {
-			Wall, Empty, Empty,
-			Wall,        Empty,
-			Wall, Empty, Empty
+			Wall, Wall, Wall,
+			Wall,       Wall,
+			Wall, Wall, Wall
 		},
-		.rotations = {
-			ROTATION_0, ROTATION_90, ROTATION_180, ROTATION_270
-		}
+		.rotations = {}
 	},
 	{
 		.id 	= "Room",
 		.tile 	= Empty,
 		.debug  = ' ',
-		.weight = 30,
+		.weight = 70,
 		.neighbours = {
 			Empty, Empty, Empty,
 			Empty,        Empty,

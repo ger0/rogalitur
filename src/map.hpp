@@ -13,17 +13,19 @@ enum Tile: char {
     TILE_MAX = Unknown 
 };
 
-struct Map {
-    const u32 width;
-    const u32 height;
-
-    Tile at(Vec2u pos) const;
-    
-    Vec<Tile> data;
-    void set(Vec2u pos, Tile);
-    Map(u32 width, u32 height);
+struct Position {
+    float x = 0.f;
+    float y = 0.f;
+    static constexpr float MAX = 100.f;
 };
 
-Map generate_map(u16 width, u16 height);
+struct Map {
+    const u16 width, height;
+    Vec<Tile> tiles;
+    Map(u16 width, u16 height);
+
+    Tile at(Vec2u tile_pos) const;
+    Tile at_pos(Position pos) const;
+};
 
 #endif // RGL_MAP_HPP

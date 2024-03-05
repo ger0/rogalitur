@@ -11,7 +11,8 @@ using u32 = uint_fast32_t;
 using u16 = uint_fast16_t;
 using u8  = uint_fast8_t;
 using i64 = int_fast64_t;
-using i32 = int_fast32_t;
+//using i32 = int_fast32_t;
+using i32 = int;
 using byte = unsigned char;
 
 template <typename... T>
@@ -47,14 +48,22 @@ template <class F> deferrer<F> operator*(defer_dummy, F f) { return {f}; }
 #define LOG_DBG(...) ;
 #endif
 
-struct Vec2i {
-    int x;
-    int y;
+struct Vec2u {
+    u16 x;
+    u16 y;
+    bool operator== (const Vec2u &rhs) const {
+		return this->x == rhs.x && this->y == rhs.y;
+    };
+
+    // hash?
+    std::size_t operator()(const Vec2u& vec) const {
+        return vec.y << 16 | vec.x;
+    };
 };
 
-struct Vec2u {
-    u32 x;
-    u32 y;
+struct Vec2i {
+    i32 x;
+    i32 y;
 };
 
 template <typename T>

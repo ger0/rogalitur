@@ -4,11 +4,6 @@
 #include "types_utils.hpp"
 #include "map.hpp"
 
-struct Position {
-    float x = 0.f;
-    float y = 0.f;
-};
-
 enum MoveType {
     move,
     stop,

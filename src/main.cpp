@@ -44,7 +44,8 @@ void spawn_player() {
 
     Physics player_phys;
     player_phys.loc = Location::air;
-    player_phys.pos = {CONF.width / 2.f, CONF.height / 2.f};
+    player_phys.pos = {Position::MAX / 2.f, Position::MAX / 2.f};
+
     physics_comps[player.id] = player_phys;
 
     player_entities.push_back(player.id);
@@ -155,7 +156,9 @@ int main(int argc, char* argv[]) {
     }
     // -----------------------------------
 
-    Map map = generate_map(32, 24);
+    // map generation
+    Map map(32, 24);
+
     // DEBUG TESTING
     // -----------------------------------
     // player entity init
@@ -196,6 +199,7 @@ int main(int argc, char* argv[]) {
         LOG_ERR("Failed to create map's texture!");
         return EXIT_FAILURE;
     }
+    // map texture generation
 	{
         int tex_w, tex_h;
         SDL_QueryTexture(brick_wall_tex, nullptr, nullptr, &tex_w, &tex_h);
@@ -213,7 +217,7 @@ int main(int argc, char* argv[]) {
 
                 // Draw wall or empty space based on the map
                 SDL_Texture* texture;
-                auto tile = map.at({x, y});
+                auto tile = map.at(Vec2u{x, y});
                 if (tile == Tile::Wall) {
                     texture = brick_wall_tex;
                 } else {
@@ -227,15 +231,13 @@ int main(int argc, char* argv[]) {
     defer {
         SDL_DestroyTexture(map_texture);
     };
-    
-    //SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-    //SDL_RenderClear(renderer);
     SDL_RenderCopy(renderer, map_texture, NULL, NULL);
 
     while (STATE != GameState::stopping) {
         poll_events(event);
 
-        //SDL_RenderClear(renderer);
+        // render
+        SDL_RenderClear(renderer);
         SDL_RenderCopy(renderer, map_texture, nullptr, nullptr);
         handle_entities(window, renderer, map);
         SDL_RenderPresent(renderer);

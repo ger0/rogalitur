@@ -22,31 +22,31 @@ enum Rotation: byte {
  */
 
 // indice ordering for each rotation state
-using N_Indices = Arr<u8, NEIGHBR_NUM>;
-using N_Kernel 	= Arr<Tile, NEIGHBR_NUM>;
+using N_indices = Arr<u8, NEIGHBR_NUM>;
+using N_kernel 	= Arr<Tile, NEIGHBR_NUM>;
 
-constexpr Arr<N_Indices, ROTATION_MAX> ROTATION_LOOKUP_INDICES {
+constexpr Arr<N_indices, ROTATION_MAX> ROTATION_LOOKUP_INDICES {
 	// 0   deg:
-	N_Indices{0,1,2,3,4,5,6,7},
+	N_indices{0,1,2,3,4,5,6,7},
 	// 90  deg:
-	N_Indices{2,4,7,1,6,0,3,5},
+	N_indices{2,4,7,1,6,0,3,5},
 	// 180 deg:
-	N_Indices{7,6,5,4,3,2,1,0},
+	N_indices{7,6,5,4,3,2,1,0},
 	// 270 deg:
-	N_Indices{5,3,0,6,1,7,4,2}
+	N_indices{5,3,0,6,1,7,4,2}
 };
 
-struct WFC_Pattern {
+struct WFC_pattern {
 	const char* id;
 	Tile tile;
 	char debug;
 	u16  weight;
-	N_Kernel neighbours;
+	N_kernel neighbours;
 	Arr<Rotation, ROTATION_MAX> rotations;
 };
 
-using Candidate_Id = u16;
-constexpr Arr<WFC_Pattern, 4> CANDIDATE_PRESETS = {{
+using Candidate_id = u16;
+constexpr Arr<WFC_pattern, 4> CANDIDATE_PRESETS = {{
 	{
 		.id 	= "Corner",
 		.tile 	= Empty,
@@ -102,35 +102,38 @@ constexpr Arr<WFC_Pattern, 4> CANDIDATE_PRESETS = {{
 }};
 
 // neighbour 
-struct Tile_Entry {
+struct Tile_entry {
 	Tile 		tile;
 	float 		entropy = NAN;
 	u32 		total_weight;
 	Arr<float, TILE_MAX> weights;
 };
 
-static u16 width, height;
+struct Map_impl {
+    const u32 width;
+    const u32 height;
+    Vec<Tile> data;
 
-u32 get_idx(u16 x, u16 y) {
-	return width * y + x;
+	u32 get_idx(u16 x, u16 y) {
+		return width * y + x;
+	};
+
+	u32 get_idx_vec2u(const Vec2u vec2) {
+		return get_idx(vec2.x, vec2.y);
+	};
+
+	std::unordered_set<Vec2u, Vec2u> next_tainted_cells;
+
+    Tile at(Vec2u pos) const;
+
+    Map_impl(u16 width, u16 height);
+	N_kernel get_neighbour_kernel(Vec2u pos, Vec<Tile_entry>& tiles);
+	void calc_weights(Tile_entry& cell, N_kernel& kernel);
+	void calc_cell_info(Vec2u pos, Vec<Tile_entry>& tiles);
 };
-
-u32 get_idx_vec2u(const Vec2u vec2) {
-	return get_idx(vec2.x, vec2.y);
-};
-bool vec2u_equal(const Vec2u lhs, const Vec2u rhs) {
-	return lhs.x == rhs.x && lhs.y == rhs.y;
-};
-
-std::unordered_set<
-	Vec2u, 
-	decltype(&get_idx_vec2u), //get_idx_vec2u
-	decltype(&vec2u_equal)
->next_tainted_cells(1, get_idx_vec2u, vec2u_equal);
-
 
 // TODO: Refactor using a different way of storing rotation data
-void calc_weights(Tile_Entry& cell, N_Kernel& kernel) {
+void Map_impl::calc_weights(Tile_entry& cell, N_kernel& kernel) {
 	for (u16 c_id = 0; c_id < CANDIDATE_PRESETS.size(); c_id++) {
 		const auto& candidate = CANDIDATE_PRESETS.at(c_id);
 		for (const auto& c_rotation : candidate.rotations) {
@@ -159,8 +162,8 @@ void calc_weights(Tile_Entry& cell, N_Kernel& kernel) {
 	}
 };
 
-N_Kernel get_neighbour_kernel(Vec2u pos, Vec<Tile_Entry>& tiles) {
-	N_Kernel kernel;
+N_kernel Map_impl::get_neighbour_kernel(Vec2u pos, Vec<Tile_entry>& tiles) {
+	N_kernel kernel;
 	u16 i = 0;
 	// add neighbouring cells to the set of tainted cells (positions of the cells)
 	for (i32 h = 1; h >= -1; h--) {
@@ -186,9 +189,9 @@ N_Kernel get_neighbour_kernel(Vec2u pos, Vec<Tile_Entry>& tiles) {
 	return kernel;
 }
 
-void calc_cell_info(Vec2u pos, Vec<Tile_Entry>& tiles) {
+void Map_impl::calc_cell_info(Vec2u pos, Vec<Tile_entry>& tiles) {
 	auto& cell = tiles.at(get_idx_vec2u(pos));
-	N_Kernel kernel = get_neighbour_kernel(pos, tiles);
+	N_kernel kernel = get_neighbour_kernel(pos, tiles);
 	calc_weights(cell, kernel);
 	// calc entropy for the weights
 	float entropy = 0.f;
@@ -203,13 +206,9 @@ void calc_cell_info(Vec2u pos, Vec<Tile_Entry>& tiles) {
 	//LOG_DBG("Updated cell at: {}, {}; with entropy {}", pos.x, pos.y, cell.entropy);
 };
 
-Map generate_map(const u16 m_width, const u16 m_height) {
-	Map map(m_width, m_height);
-	// temporary fix
-	width = m_width;
-	height = m_height;
-
-	Vec<Tile_Entry> tiles(width * height);
+Map_impl::Map_impl(u16 m_width, u16 m_height): height(m_height), width(m_width) {
+	this->data.resize(width * height);
+	Vec<Tile_entry> tiles(width * height);
 	srand(time(NULL));
 
 	for (u16 w = 0; w < width; w++) {
@@ -289,17 +288,16 @@ Map generate_map(const u16 m_width, const u16 m_height) {
 
 	// output the result
 	for (u16 i = 0; i < height * width; i++) {
-		map.data[i] = tiles[i].tile;
+		this->data[i] = tiles[i].tile;
 		if (i % (width) == 0) {
 			printf("\n");
 		}
 		u32 sym = tiles.at(i).tile;
 		printf("%lu ", sym);
 	}
-	return map;
 }
 
-Tile Map::at(Vec2u pos) const {
+Tile Map_impl::at(Vec2u pos) const {
 	if (pos.x <= 0 || pos.x >= width 
 		|| pos.y <= 0 || pos.y >= height) {
 		return Tile::Wall;
@@ -308,6 +306,24 @@ Tile Map::at(Vec2u pos) const {
 	}
 }
 
-Map::Map(u16 width, u16 height): height(height), width(width) {
-	this->data.resize(width * height);
+Map::Map(u16 width, u16 height): width(width), height(height) {
+	auto impl = Map_impl(width, height);
+	this->tiles = impl.data;
+}
+
+Tile Map::at_pos(Position pos) const {
+	Vec2u n_pos {
+		.x = (u16)(Position::MAX * pos.x / this->width),
+		.y = (u16)(Position::MAX * pos.y / this->height)
+	};
+	return this->at(n_pos);
+}
+
+Tile Map::at(Vec2u pos) const {
+	if (pos.x <= 0 || pos.x >= width 
+		|| pos.y <= 0 || pos.y >= height) {
+		return Tile::Wall;
+	} else {
+		return this->tiles.at(pos.x + (width * pos.y));
+	}
 }

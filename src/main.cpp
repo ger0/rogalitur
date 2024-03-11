@@ -38,13 +38,13 @@ enum GameState : byte {
     stopping,
 } STATE;
 
-void spawn_player() {
+void spawn_player(Position spawn_pos) {
     Entity player = create_new_entity(PLAYER_FLAG | PHYSICS_FLAG | RENDER_FLAG);
     entities.push_back(player);
 
     Physics player_phys;
     player_phys.loc = Location::air;
-    player_phys.pos = {Position::MAX / 2.f, Position::MAX / 2.f};
+    player_phys.pos = spawn_pos;
 
     physics_comps[player.id] = player_phys;
 
@@ -101,8 +101,8 @@ void handle_entities(SDL_Window* wndw, SDL_Renderer* rndr, const Map& map) {
             auto& elem = render_comps.at(entity.id);
             // render 
             SDL_Rect rect = {
-                elem.pos.x,
-                static_cast<int>(CONF.height - elem.pos.y - elem.bnd.y), 
+                (int)(elem.pos.x / Position::MAX * CONF.width),
+                (int)(CONF.height - (elem.pos.y / Position::MAX * CONF.height) - elem.bnd.y), 
                 elem.bnd.x, 
                 elem.bnd.y
             };
@@ -157,12 +157,18 @@ int main(int argc, char* argv[]) {
     // -----------------------------------
 
     // map generation
-    Map map(32, 24);
+    Vec2u dim = {32, 24};
+    Vec2u spawn = dim / Vec2u{2, 2};
+
+    Map map(dim, spawn);
 
     // DEBUG TESTING
     // -----------------------------------
     // player entity init
-    spawn_player();
+    spawn_player({
+            Position::MAX * spawn.x / (float)dim.x,
+            Position::MAX * spawn.y / (float)dim.y,
+    });
 
     // player sprite init 
     Renderable player_rend {

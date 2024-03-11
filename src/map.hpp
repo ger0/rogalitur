@@ -22,7 +22,7 @@ struct Position {
 struct Map {
     const u16 width, height;
     Vec<Tile> tiles;
-    Map(u16 width, u16 height);
+    Map(Vec2u dimensions, Vec2u spawn_pos);
 
     Tile at(Vec2u tile_pos) const;
     Tile at_pos(Position pos) const;

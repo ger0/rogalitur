@@ -1,4 +1,5 @@
 #include "map.hpp"
+#include <cassert>
 #include <unordered_set>
 
 constexpr u16 NEIGHBR_NUM = 8;
@@ -126,7 +127,7 @@ struct Map_impl {
 
     Tile at(Vec2u pos) const;
 
-    Map_impl(u16 width, u16 height);
+    Map_impl(Vec2u dimensions, Vec2u starting_pos);
 	N_kernel get_neighbour_kernel(Vec2u pos, Vec<Tile_entry>& tiles);
 	void calc_weights(Tile_entry& cell, N_kernel& kernel);
 	void calc_cell_info(Vec2u pos, Vec<Tile_entry>& tiles);
@@ -134,6 +135,9 @@ struct Map_impl {
 
 // TODO: Refactor using a different way of storing rotation data
 void Map_impl::calc_weights(Tile_entry& cell, N_kernel& kernel) {
+	if (cell.tile != Tile::Unknown) {
+		return;
+	}
 	for (u16 c_id = 0; c_id < CANDIDATE_PRESETS.size(); c_id++) {
 		const auto& candidate = CANDIDATE_PRESETS.at(c_id);
 		for (const auto& c_rotation : candidate.rotations) {
@@ -206,7 +210,7 @@ void Map_impl::calc_cell_info(Vec2u pos, Vec<Tile_entry>& tiles) {
 	//LOG_DBG("Updated cell at: {}, {}; with entropy {}", pos.x, pos.y, cell.entropy);
 };
 
-Map_impl::Map_impl(u16 m_width, u16 m_height): height(m_height), width(m_width) {
+Map_impl::Map_impl(Vec2u dim, Vec2u start_pos): height(dim.x), width(dim.y) {
 	this->data.resize(width * height);
 	Vec<Tile_entry> tiles(width * height);
 	srand(time(NULL));
@@ -226,12 +230,10 @@ Map_impl::Map_impl(u16 m_width, u16 m_height): height(m_height), width(m_width) 
 	}
 
 	// spawn
-	u16 start_x = width / 2;
-	u16 start_y = height / 2;
-	tiles.at(get_idx(start_x, start_y)).tile = Tile::Empty;
+	tiles.at(get_idx(start_pos.x, start_pos.y)).tile = Tile::Empty;
 
 	// get neighbouring cells' positions
-	calc_cell_info({start_x, start_y}, tiles);
+	get_neighbour_kernel(start_pos, tiles);
 
 	auto calc_tainted_cells = [&]() {
 		auto tainted_cells(std::move(next_tainted_cells));
@@ -268,8 +270,12 @@ Map_impl::Map_impl(u16 m_width, u16 m_height): height(m_height), width(m_width) 
 	u32 iter = 0;
     while (setup_lowest_entropy()) {
     	auto& cell = tiles.at(get_idx_vec2u(current_pos));
-		LOG_DBG("TILE AT POS: {}, {}", current_pos.x, current_pos.y);
-		LOG_DBG(" 	entropy: {}, total_weight: {}", cell.entropy, cell.total_weight);
+		/* LOG_DBG("TILE AT POS: {}, {}", current_pos.x, current_pos.y);
+		LOG_DBG(" 	entropy: {}, total_weight: {}", cell.entropy, cell.total_weight); */
+		if (cell.tile != Tile::Unknown) {
+			LOG_ERR("ILLEGAL STATE DETECTED!");
+			assert(false);
+		}
 
 		// set the tile
 		int choice = rand() % cell.total_weight;
@@ -282,7 +288,7 @@ Map_impl::Map_impl(u16 m_width, u16 m_height): height(m_height), width(m_width) 
 			cell.tile = (Tile)i;
 			break;
 		}
-		LOG_DBG(" 	 	HAS CHOSEN: {}", (u32)cell.tile);
+		// LOG_DBG(" 	 	HAS CHOSEN: {}", (u32)cell.tile);
 		iter++;
     }
 
@@ -295,6 +301,8 @@ Map_impl::Map_impl(u16 m_width, u16 m_height): height(m_height), width(m_width) 
 		u32 sym = tiles.at(i).tile;
 		printf("%lu ", sym);
 	}
+	LOG_DBG("SPAWN : {}", (u32)data[get_idx_vec2u(start_pos)]);
+	LOG_DBG("SPAWN POS: {} {}", 100.f * start_pos.x / (float)width, 100.f * start_pos.y / (float)height);
 }
 
 Tile Map_impl::at(Vec2u pos) const {
@@ -306,8 +314,9 @@ Tile Map_impl::at(Vec2u pos) const {
 	}
 }
 
-Map::Map(u16 width, u16 height): width(width), height(height) {
-	auto impl = Map_impl(width, height);
+// TODO: Refactor
+Map::Map(Vec2u dim, Vec2u spawn_pos): width(dim.x), height(dim.y) {
+	auto impl = Map_impl(dim, spawn_pos);
 	this->tiles = impl.data;
 }
 

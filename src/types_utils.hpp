@@ -59,6 +59,20 @@ struct Vec2u {
     std::size_t operator()(const Vec2u& vec) const {
         return vec.y << 16 | vec.x;
     };
+
+    Vec2u operator / (Vec2u rhs) {
+        Vec2u n_p;
+        n_p.x = this->x / rhs.x;
+        n_p.y = this->y / rhs.y;
+        return n_p;
+    }
+
+    Vec2u operator * (Vec2u rhs) {
+        Vec2u n_p;
+        n_p.x = this->x * rhs.x;
+        n_p.y = this->y * rhs.y;
+        return n_p;
+    }
 };
 
 struct Vec2i {
